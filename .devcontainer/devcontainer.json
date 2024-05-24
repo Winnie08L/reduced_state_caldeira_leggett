@@ -47,7 +47,7 @@
 				"python.testing.pytestEnabled": false,
 				"python.testing.unittestEnabled": true,
 				"python.analysis.include": [
-					"caldeira_legget_examples",
+					"reduced_state_caldeira_leggett",
 					"examples",
 					"tests",
 					"lib/surface_potential_analysis/surface_potential_analysis"
