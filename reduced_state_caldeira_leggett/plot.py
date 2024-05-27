@@ -69,6 +69,33 @@ def plot_system_eigenstates(
     input()
 
 
+def plot_basis_states(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> None:
+    """Plot the potential against position."""
+    potential = get_extended_interpolated_potential(
+        system,
+        config.shape,
+        config.resolution,
+    )
+    fig, ax, _ = plot_potential_1d_x(potential)
+
+    hamiltonian = get_hamiltonian(system, config)
+    states = hamiltonian["basis"][0].vectors
+
+    ax1 = ax.twinx()
+    fig2, ax2 = plt.subplots()
+    for _i, state in enumerate(state_vector_list_into_iter(states)):
+        plot_state_1d_x(state, ax=ax1)
+
+        plot_state_1d_k(state, ax=ax2)
+
+    fig.show()
+    fig2.show()
+    input()
+
+
 def plot_thermal_occupation(
     system: PeriodicSystem,
     config: SimulationConfig,

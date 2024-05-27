@@ -41,7 +41,12 @@ from surface_potential_analysis.stacked_basis.conversion import (
     stacked_basis_as_fundamental_position_basis,
 )
 from surface_potential_analysis.wavepacket.get_eigenstate import (
-    get_bloch_hamiltonian,
+    get_full_bloch_hamiltonian,
+    get_full_wannier_hamiltonian,
+)
+from surface_potential_analysis.wavepacket.localization import (
+    Wannier90Options,
+    get_localization_operator_wannier90,
 )
 from surface_potential_analysis.wavepacket.wavepacket import (
     BlochWavefunctionListWithEigenvaluesList,
@@ -86,6 +91,7 @@ class SimulationConfig:
     shape: tuple[int]
     resolution: tuple[int]
     n_bands: int
+    type: Literal["bloch", "wannier"]
 
 
 HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
@@ -201,7 +207,18 @@ def get_hamiltonian(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> SingleBasisOperator[ExplicitStackedBasisWithLength[Any, Any]]:
-    return as_operator(get_bloch_hamiltonian(_get_wavepacket(system, config)))
+    wavefunctions = _get_wavepacket(system, config)
+
+    if config.type == "bloch":
+        return as_operator(get_full_bloch_hamiltonian(wavefunctions))
+
+    operator = get_localization_operator_wannier90(
+        wavefunctions,
+        options=Wannier90Options[FundamentalBasis[int]](
+            projection={"basis": StackedBasis(FundamentalBasis[int](config.n_bands))},
+        ),
+    )
+    return get_full_wannier_hamiltonian(wavefunctions, operator)
 
 
 def get_noise_kernel(
