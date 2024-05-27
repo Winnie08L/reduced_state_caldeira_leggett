@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import numpy as np
 from matplotlib import pyplot as plt
 from surface_potential_analysis.basis.explicit_basis import (
     explicit_stacked_basis_as_fundamental,
 )
-from surface_potential_analysis.operator.plot import plot_eigenstate_occupations
+from surface_potential_analysis.kernel.kernel import as_diagonal_kernel
+from surface_potential_analysis.kernel.plot import (
+    plot_diagonal_kernel,
+    plot_kernel_truncation_error,
+)
+from surface_potential_analysis.operator.operator_list import select_operator
+from surface_potential_analysis.operator.plot import (
+    plot_eigenstate_occupations,
+    plot_operator_2d,
+)
 from surface_potential_analysis.potential.plot import plot_potential_1d_x
 from surface_potential_analysis.state_vector.conversion import (
     convert_state_vector_list_to_basis,
@@ -23,8 +33,10 @@ from surface_potential_analysis.state_vector.state_vector_list import (
 from reduced_state_caldeira_leggett.system import (
     PeriodicSystem,
     SimulationConfig,
-    get_actual_state_hamiltonian,
     get_extended_interpolated_potential,
+    get_hamiltonian,
+    get_noise_kernel,
+    get_noise_operators,
 )
 
 
@@ -40,7 +52,7 @@ def plot_system_eigenstates(
     )
     fig, ax, _ = plot_potential_1d_x(potential)
 
-    hamiltonian = get_actual_state_hamiltonian(system, config)
+    hamiltonian = get_hamiltonian(system, config)
     eigenvectors = calculate_eigenvectors_hermitian(hamiltonian)
     basis = explicit_stacked_basis_as_fundamental(hamiltonian["basis"][0])
     converted = convert_state_vector_list_to_basis(eigenvectors, basis)
@@ -61,8 +73,44 @@ def plot_thermal_occupation(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
-    hamiltonian = get_actual_state_hamiltonian(system, config)
+    hamiltonian = get_hamiltonian(system, config)
     fig, _, _ = plot_eigenstate_occupations(hamiltonian, 150)
 
     fig.show()
+    input()
+
+
+def plot_kernel(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> None:
+    kernel = get_noise_kernel(system, config, 150)
+    diagonal = as_diagonal_kernel(kernel)
+
+    fig, _, _ = plot_diagonal_kernel(diagonal)
+    fig.show()
+
+    fig, _ = plot_kernel_truncation_error(kernel)
+    fig.show()
+
+    input()
+
+
+def plot_lindblad_operator(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    *,
+    temperature: float = 155,
+) -> None:
+    operators = get_noise_operators(system, config, temperature)
+
+    args = np.argsort(np.abs(operators["eigenvalue"]))[::-1]
+
+    for idx in args[:10]:
+        operator = select_operator(operators, idx=idx)
+
+        fig, ax, _ = plot_operator_2d(operator)
+        ax.set_title("Operator")
+        fig.show()
+
     input()

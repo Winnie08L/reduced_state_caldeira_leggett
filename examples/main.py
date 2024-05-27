@@ -1,4 +1,6 @@
 from reduced_state_caldeira_leggett.plot import (
+    plot_kernel,
+    plot_lindblad_operator,
     plot_system_eigenstates,
     plot_thermal_occupation,
 )
@@ -9,6 +11,9 @@ from reduced_state_caldeira_leggett.system import (
 
 if __name__ == "__main__":
     system = HYDROGEN_NICKEL_SYSTEM
-    config = SimulationConfig(shape=(4,), resolution=(30,), n_bands=2)
+    config = SimulationConfig(shape=(3,), resolution=(31,), n_bands=2)
+
+    plot_lindblad_operator(system, config)
+    plot_kernel(system, config)
     plot_thermal_occupation(system, config)
     plot_system_eigenstates(system, config)
