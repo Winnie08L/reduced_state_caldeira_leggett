@@ -86,12 +86,14 @@ def plot_basis_states(
 
     ax1 = ax.twinx()
     fig2, ax2 = plt.subplots()
-    for _i, state in enumerate(state_vector_list_into_iter(states)):
-        plot_state_1d_x(state, ax=ax1)
+    for i, state in enumerate(state_vector_list_into_iter(states)):
+        _, _, line = plot_state_1d_x(state, ax=ax1)
+        line.set_label(f"state {i}")
 
         plot_state_1d_k(state, ax=ax2)
 
     fig.show()
+    fig.legend()
     fig2.show()
     input()
 
