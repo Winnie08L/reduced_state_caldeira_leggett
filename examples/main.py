@@ -14,8 +14,8 @@ if __name__ == "__main__":
     system = HYDROGEN_NICKEL_SYSTEM
     config = SimulationConfig(shape=(3,), resolution=(31,), n_bands=3, type="wannier")
 
-    plot_lindblad_operator(system, config)
-    plot_kernel(system, config)
-    plot_thermal_occupation(system, config)
     plot_basis_states(system, config)
+    plot_kernel(system, config, temperature=0.0001)
+    plot_lindblad_operator(system, config)
+    plot_thermal_occupation(system, config)
     plot_system_eigenstates(system, config)

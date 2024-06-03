@@ -126,5 +126,5 @@ def get_stochastic_evolution(
         times,
         hamiltonian,
         operator_list,
-        method="order2",
+        method="Order2ExplicitWeak",
     )

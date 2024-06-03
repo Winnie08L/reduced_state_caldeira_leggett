@@ -5,11 +5,15 @@ from matplotlib import pyplot as plt
 from surface_potential_analysis.basis.explicit_basis import (
     explicit_stacked_basis_as_fundamental,
 )
-from surface_potential_analysis.kernel.kernel import as_diagonal_kernel
+from surface_potential_analysis.kernel.kernel import as_diagonal_kernel, as_noise_kernel
+from surface_potential_analysis.kernel.kernel import (
+    get_noise_kernel as get_noise_kernel_generic,
+)
 from surface_potential_analysis.kernel.plot import (
     plot_diagonal_kernel,
     plot_kernel_truncation_error,
 )
+from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
 from surface_potential_analysis.operator.operator_list import select_operator
 from surface_potential_analysis.operator.plot import (
     plot_eigenstate_occupations,
@@ -79,7 +83,9 @@ def plot_basis_states(
         config.shape,
         config.resolution,
     )
-    fig, ax, _ = plot_potential_1d_x(potential)
+    fig, ax, line = plot_potential_1d_x(potential)
+    line.set_color("black")
+    line.set_linewidth(3)
 
     hamiltonian = get_hamiltonian(system, config)
     states = hamiltonian["basis"][0].vectors
@@ -93,7 +99,6 @@ def plot_basis_states(
         plot_state_1d_k(state, ax=ax2)
 
     fig.show()
-    fig.legend()
     fig2.show()
     input()
 
@@ -112,14 +117,29 @@ def plot_thermal_occupation(
 def plot_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
+    *,
+    temperature: float = 155,
 ) -> None:
-    kernel = get_noise_kernel(system, config, 150)
+    kernel = get_noise_kernel(system, config, temperature)
     diagonal = as_diagonal_kernel(kernel)
 
     fig, _, _ = plot_diagonal_kernel(diagonal)
     fig.show()
 
+    fig, _, _ = plot_kernel_generic(as_noise_kernel(diagonal))
+    fig.show()
+
     fig, _ = plot_kernel_truncation_error(kernel)
+    fig.show()
+
+    corrected_operators = get_noise_operators(system, config, temperature)
+    kernel_full = get_noise_kernel_generic(corrected_operators)
+
+    fig, _, _ = plot_kernel_generic(kernel_full)
+    fig.show()
+
+    diagonal = as_diagonal_kernel(kernel_full)
+    fig, _, _ = plot_diagonal_kernel(diagonal)
     fig.show()
 
     input()
