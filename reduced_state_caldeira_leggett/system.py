@@ -30,6 +30,13 @@ from surface_potential_analysis.kernel.conversion import (
 from surface_potential_analysis.kernel.gaussian import (
     get_effective_gaussian_noise_operators,
     get_gaussian_noise_kernel,
+    get_temperature_corrected_noise_operators,
+)
+from surface_potential_analysis.kernel.kernel import (
+    get_noise_kernel as get_noise_kernel_generic,
+)
+from surface_potential_analysis.kernel.kernel import (
+    get_single_factorized_noise_operators,
 )
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.potential.conversion import convert_potential_to_basis
@@ -258,7 +265,34 @@ def get_noise_kernel(
         .swapaxes(0, 1)
         .ravel()
     )
-    return converted
+    operators = get_single_factorized_noise_operators(converted)
+    corrected = get_temperature_corrected_noise_operators(
+        actual_hamiltonian,
+        operators,
+        temperature,
+    )
+    corrected_kernel = get_noise_kernel_generic(corrected)
+    data = (
+        corrected_kernel["data"]
+        .reshape(
+            *corrected_kernel["basis"][0].shape,
+            *corrected_kernel["basis"][1].shape,
+        )
+        .swapaxes(0, 1)
+        .reshape(corrected_kernel["basis"][0].n, corrected_kernel["basis"][1].n)
+    )
+    data += np.conj(np.transpose(data))
+    data /= 2
+    corrected_kernel["data"] = (
+        data.reshape(
+            corrected_kernel["basis"][0].shape[1],
+            corrected_kernel["basis"][0].shape[0],
+            *corrected_kernel["basis"][1].shape,
+        )
+        .swapaxes(0, 1)
+        .ravel()
+    )
+    return corrected_kernel
 
 
 def get_noise_operators(
