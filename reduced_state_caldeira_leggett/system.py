@@ -20,6 +20,7 @@ from surface_potential_analysis.basis.stacked_basis import (
     StackedBasis,
     StackedBasisLike,
 )
+from surface_potential_analysis.basis.util import BasisUtil
 from surface_potential_analysis.hamiltonian_builder.momentum_basis import (
     total_surface_hamiltonian,
 )
@@ -78,6 +79,47 @@ _L0Inv = TypeVar("_L0Inv", bound=int)
 _L1Inv = TypeVar("_L1Inv", bound=int)
 
 
+# @dataclass
+# class PeriodicSystem:
+#     """Represents the properties of a 3D Periodic System."""
+
+#     id: str
+#     """A unique ID, for use in caching"""
+#     barrier_energy: float
+#     lattice_constant: np.ndarray[
+#         tuple[int, int],
+#         np.dtype[np.float64],
+#     ]  # specifying lattice vectors, expressed in rows
+#     mass: float
+#     gamma: float
+
+#     @property
+#     def eta(self) -> float:
+#         return 2 * self.mass * self.gamma
+
+#     def get_potential(
+#         self,
+#         config: SimulationConfig,
+#     ) -> Potential[StackedBasis[*tuple[Any, ...]]]:
+#         ...
+
+
+# class PeriodicSystem2d(PeriodicSystem):
+#     def get_potential2d(
+#         self,
+#         config: SimulationConfig,
+#     ) -> Potential[
+#         StackedBasisLike[
+#             EvenlySpacedTransformedPositionBasis[_L1Inv, _L0Inv, Literal[0], Literal[1]]
+#         ]
+#     ]:
+#         return get_extended_interpolated_potential(
+#             self,
+#             config.shape,
+#             config.resolution,
+#         )
+
+
 @dataclass
 class PeriodicSystem:
     """Represents the properties of a 1D Periodic System."""
@@ -90,7 +132,7 @@ class PeriodicSystem:
     gamma: float
 
     @property
-    def eta(self) -> float:  # noqa: D102, ANN101
+    def eta(self) -> float:
         return 2 * self.mass * self.gamma
 
 
@@ -98,8 +140,8 @@ class PeriodicSystem:
 class SimulationConfig:
     """Configure the detail of the simulation."""
 
-    shape: tuple[int]
-    resolution: tuple[int]
+    shape: tuple[int, ...]
+    resolution: tuple[int, ...]
     n_bands: int
     type: Literal["bloch", "wannier"]
 
@@ -109,13 +151,38 @@ HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
     barrier_energy=2.5593864192e-20,
     lattice_constant=2.46e-10 / np.sqrt(2),
     mass=1.67e-27,
+    gamma=1.2e12,
+)
+
+# try 2d
+# HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
+#     id="HNi",
+#     barrier_energy=2.5593864192e-20,
+#     lattice_constant=np.array(2.46e-10 / np.sqrt(2), 2.46e-10 / np.sqrt(2)),
+#     mass=1.67e-27,
+#     gamma=1.2e12,
+# )
+
+# FREE_LITHIUM_SYSTEM = PeriodicSystem(
+#     id="LiFree",
+#     barrier_energy=0,
+#     lattice_constant=3.615e-10,
+#     mass=1.152414898e-26,
+#     gamma=1.2e12,
+# )
+
+SODIUM_COPPER_SYSTEM = PeriodicSystem(
+    id="NaCu",
+    barrier_energy=55,  # meV
+    lattice_constant=3.615,  # A
+    mass=3.8175458e-26,
     gamma=0.2e12,
 )
 
-FREE_LITHIUM_SYSTEM = PeriodicSystem(
-    id="LiFree",
-    barrier_energy=0,
-    lattice_constant=3.615e-10,
+LITHIUM_COPPER_SYSTEM = PeriodicSystem(
+    id="LiCu",
+    barrier_energy=45,  # meV
+    lattice_constant=3.615,  # A
     mass=1.152414898e-26,
     gamma=1.2e12,
 )
@@ -128,6 +195,55 @@ def get_potential(
     axis = FundamentalTransformedPositionBasis1d[Literal[3]](np.array([delta_x]), 3)
     vector = 0.25 * system.barrier_energy * np.array([2, -1, -1]) * np.sqrt(3)
     return {"basis": StackedBasis(axis), "data": vector}
+
+
+# def get_3d_potential(
+#     system: PeriodicSystem,
+# ) -> Potential[
+#     StackedBasis[FundamentalTransformedPositionBasis[Literal[3], Literal[3]]]
+# ]:  # what is literal[num]??
+#     delta_x = np.array([np.linalg.norm(x) for x in system.lattice_constant])
+#     axis = [
+#         FundamentalTransformedPositionBasis3d[Literal[3]](
+#             np.array([delta_x[i]]),
+#             3,
+#         )
+#         for i in range(np.shape(delta_x)[0])
+#     ]
+#     vector = 0.25 * system.barrier_energy * np.array([2, -1, -1]) * np.sqrt(3) #?
+#     return {
+#         "basis": StackedBasis(*axis),
+#         "data": vector,
+#     }
+
+
+def get_2d_111_potential(system: PeriodicSystem):
+    vector_x = np.array([5.0, 0])
+    vector_y = np.array([0, 5.0])
+
+    basis_x = FundamentalPositionBasis(vector_x, 800)
+    basis_y = FundamentalPositionBasis(vector_y, 800)
+    full_basis = StackedBasis(basis_x, basis_y)
+    util = BasisUtil(full_basis)
+    x_points = util.x_points_stacked
+
+    # 111 of fcc
+    zeta = 4 * np.pi / (np.sqrt(3) * system.lattice_constant)
+    g = [
+        np.array([zeta, 0]),
+        np.array([zeta * np.cos(np.pi / 3), zeta * np.sin(np.pi / 3)]),
+        np.array([-zeta * np.cos(np.pi / 3), zeta * np.sin(np.pi / 3)]),
+    ]
+    g = np.array(g)
+
+    V_r = []
+    for r in x_points.T:
+        V_i = 0
+        for g_i in g:
+            V_i += -system.barrier_energy * np.cos(np.inner(g_i, r))
+        V_r.append(V_i)
+    V_r = np.array(V_r)
+    return {"basis": full_basis, "data": V_r}
 
 
 def get_interpolated_potential(

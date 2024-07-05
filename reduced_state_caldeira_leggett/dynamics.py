@@ -103,7 +103,7 @@ def get_stochastic_evolution(
     converted = convert_state_vector_to_basis(initial_state, hamiltonian["basis"][0])
     dt = hbar / (np.max(np.abs(hamiltonian["data"])) * dt_ratio)
     times = EvenlySpacedTimeBasis(n, step, 0, n * step * dt)
-    temperature = 1550
+    temperature = 155
 
     operators = get_noise_operators(system, config, temperature)
     operator_list = list[SingleBasisOperator[Any]]()
