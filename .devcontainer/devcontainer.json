@@ -97,5 +97,5 @@
 			]
 		}
 	},
-	"onCreateCommand": "git submodule update --init --recursive && rustup default nightly && pip install maturin && poetry install"
+	"onCreateCommand": "rustup default nightly && pip install maturin && poetry install"
 }

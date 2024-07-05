@@ -70,6 +70,9 @@ if TYPE_CHECKING:
     )
     from surface_potential_analysis.operator.operator import SingleBasisOperator
     from surface_potential_analysis.potential.potential import Potential
+    from surface_potential_analysis.wavepacket.localization_operator import (
+        LocalizationOperator,
+    )
 
 _L0Inv = TypeVar("_L0Inv", bound=int)
 _L1Inv = TypeVar("_L1Inv", bound=int)
@@ -107,6 +110,14 @@ HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
     lattice_constant=2.46e-10 / np.sqrt(2),
     mass=1.67e-27,
     gamma=0.2e12,
+)
+
+FREE_LITHIUM_SYSTEM = PeriodicSystem(
+    id="LiFree",
+    barrier_energy=0,
+    lattice_constant=3.615e-10,
+    mass=1.152414898e-26,
+    gamma=1.2e12,
 )
 
 
@@ -210,6 +221,29 @@ def _get_wavepacket(
     )
 
 
+def get_localisation_operator(
+    wavefunctions: BlochWavefunctionListWithEigenvaluesList[
+        EvenlySpacedBasis[int, int, int],
+        StackedBasisLike[FundamentalBasis[int]],
+        StackedBasisLike[FundamentalPositionBasis[int, Literal[1]]],
+    ],
+) -> LocalizationOperator[
+    StackedBasisLike[FundamentalBasis[int]],
+    FundamentalBasis[int],
+    EvenlySpacedBasis[int, int, int],
+]:
+    return get_localization_operator_wannier90(
+        wavefunctions,
+        options=Wannier90Options[FundamentalBasis[int]](
+            projection={
+                "basis": StackedBasis(
+                    FundamentalBasis[int](wavefunctions["basis"][0][0].n),
+                ),
+            },
+        ),
+    )
+
+
 def get_hamiltonian(
     system: PeriodicSystem,
     config: SimulationConfig,
@@ -219,12 +253,7 @@ def get_hamiltonian(
     if config.type == "bloch":
         return as_operator(get_full_bloch_hamiltonian(wavefunctions))
 
-    operator = get_localization_operator_wannier90(
-        wavefunctions,
-        options=Wannier90Options[FundamentalBasis[int]](
-            projection={"basis": StackedBasis(FundamentalBasis[int](config.n_bands))},
-        ),
-    )
+    operator = get_localisation_operator(wavefunctions)
     return get_full_wannier_hamiltonian(wavefunctions, operator)
 
 
