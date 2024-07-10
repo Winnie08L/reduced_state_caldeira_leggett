@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from scipy.constants import hbar
@@ -22,6 +22,7 @@ from .system import (
     PeriodicSystem,
     SimulationConfig,
     get_hamiltonian,
+    get_initial_state,
     get_noise_operators,
 )
 
@@ -30,30 +31,12 @@ if TYPE_CHECKING:
         FundamentalBasis,
         FundamentalPositionBasis,
     )
-    from surface_potential_analysis.basis.basis_like import BasisLike
     from surface_potential_analysis.basis.stacked_basis import (
         StackedBasisLike,
-    )
-    from surface_potential_analysis.state_vector.state_vector import (
-        StateVector,
     )
     from surface_potential_analysis.state_vector.state_vector_list import (
         StateVectorList,
     )
-
-    _B0Inv = TypeVar(
-        "_B0Inv",
-        bound=BasisLike[Any, Any],
-    )
-
-
-def get_initial_state(basis: _B0Inv) -> StateVector[_B0Inv]:
-    data = np.zeros(basis.n, dtype=np.complex128)
-    data[0] = 1
-    return {
-        "basis": basis,
-        "data": data,
-    }
 
 
 def _get_stochastic_evolution_cache(
@@ -90,7 +73,7 @@ def get_stochastic_evolution(
 ]:
     hamiltonian = get_hamiltonian(system, config)
 
-    initial_state = get_initial_state(hamiltonian["basis"][0])
+    initial_state = get_initial_state(system, config)
     dt = hbar / (np.max(np.abs(hamiltonian["data"])) * dt_ratio)
     times = EvenlySpacedTimeBasis(n, step, 0, n * step * dt)
     temperature = 155
