@@ -50,6 +50,7 @@ from surface_potential_analysis.stacked_basis.conversion import (
 from surface_potential_analysis.wavepacket.get_eigenstate import (
     get_full_bloch_hamiltonian,
     get_full_wannier_hamiltonian,
+    get_wannier_basis,
 )
 from surface_potential_analysis.wavepacket.localization import (
     Wannier90Options,
@@ -70,6 +71,7 @@ if TYPE_CHECKING:
     )
     from surface_potential_analysis.operator.operator import SingleBasisOperator
     from surface_potential_analysis.potential.potential import Potential
+    from surface_potential_analysis.state_vector.state_vector import StateVector
     from surface_potential_analysis.wavepacket.localization_operator import (
         LocalizationOperator,
     )
@@ -193,7 +195,7 @@ def _get_full_hamiltonian(
     return total_surface_hamiltonian(converted, system.mass, bloch_fraction)
 
 
-def _get_wavepacket(
+def get_wavepacket(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> BlochWavefunctionListWithEigenvaluesList[
@@ -248,7 +250,7 @@ def get_hamiltonian(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> SingleBasisOperator[ExplicitStackedBasisWithLength[Any, Any]]:
-    wavefunctions = _get_wavepacket(system, config)
+    wavefunctions = get_wavepacket(system, config)
 
     if config.type == "bloch":
         return as_operator(get_full_bloch_hamiltonian(wavefunctions))
@@ -341,3 +343,18 @@ def get_noise_operators(
 
     actual_hamiltonian = get_hamiltonian(system, config)
     return convert_noise_operator_list_to_basis(operators, actual_hamiltonian["basis"])
+
+
+def get_initial_state(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> StateVector[ExplicitStackedBasisWithLength[Any, Any]]:
+    wavefunctions = get_wavepacket(system, config)
+    operator = get_localisation_operator(wavefunctions)
+    basis = get_wannier_basis(wavefunctions, operator)
+    data = np.zeros(basis.n, dtype=np.complex128)
+    data[0] = 1
+    return {
+        "basis": basis,
+        "data": data,
+    }
