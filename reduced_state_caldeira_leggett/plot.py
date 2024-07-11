@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from matplotlib import pyplot as plt
 from surface_potential_analysis.basis.explicit_basis import (
     explicit_stacked_basis_as_fundamental,
 )
-from surface_potential_analysis.basis.stacked_basis import StackedBasis
+from surface_potential_analysis.basis.stacked_basis import (
+    StackedBasis,
+    StackedBasisLike,
+)
 from surface_potential_analysis.kernel.kernel import as_diagonal_kernel, as_noise_kernel
 from surface_potential_analysis.kernel.kernel import (
     get_noise_kernel as get_noise_kernel_generic,
@@ -22,7 +27,10 @@ from surface_potential_analysis.operator.plot import (
     plot_operator_2d,
     plot_operator_along_diagonal,
 )
-from surface_potential_analysis.potential.plot import plot_potential_1d_x
+from surface_potential_analysis.potential.plot import (
+    plot_potential_1d_x,
+    plot_potential_2d_x,
+)
 from surface_potential_analysis.state_vector.conversion import (
     convert_state_vector_list_to_basis,
     convert_state_vector_to_basis,
@@ -31,6 +39,7 @@ from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
 )
 from surface_potential_analysis.state_vector.plot import (
+    animate_state_3d_x,
     animate_state_over_list_1d_x,
     plot_average_band_occupation,
     plot_state_1d_k,
@@ -47,11 +56,16 @@ from reduced_state_caldeira_leggett.dynamics import (
 from reduced_state_caldeira_leggett.system import (
     PeriodicSystem,
     SimulationConfig,
+    get_2d_111_potential,
     get_extended_interpolated_potential,
     get_hamiltonian,
     get_noise_kernel,
     get_noise_operators,
 )
+
+if TYPE_CHECKING:
+    from surface_potential_analysis.potential.conversion import _BL0
+    from surface_potential_analysis.potential.potential import Potential
 
 
 def plot_system_eigenstates(
@@ -250,5 +264,29 @@ def plot_noise_operator(
     converted = convert_operator_to_basis(operator, StackedBasis(basis, basis))
     fig, _ax, _ = plot_operator_along_diagonal(converted)
 
+    fig.show()
+    input()
+
+
+def plot_2d_111_potential(
+    potential: Potential[StackedBasisLike[*tuple[_BL0, ...]]],
+) -> None:
+    fig, _, _ = plot_potential_2d_x(potential)
+    fig.show()
+    input()
+
+
+def plot_2d_111_state_against_t(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    *,
+    n: int,
+    step: int,
+    dt_ratio: float = 500,
+) -> None:
+    potential = get_2d_111_potential(system, config.shape, config.resolution)
+    fig, ax, _ = plot_potential_2d_x(potential)
+    states = get_stochastic_evolution(system, config, n=n, step=step, dt_ratio=dt_ratio)
+    _fig, _, _animation_ = animate_state_3d_x(states, ax=ax.twinx())
     fig.show()
     input()
