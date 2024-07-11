@@ -104,6 +104,7 @@ class SimulationConfig:
     resolution: tuple[int]
     n_bands: int
     type: Literal["bloch", "wannier"]
+    temperature: float
 
 
 HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
@@ -262,12 +263,11 @@ def get_hamiltonian(
 def get_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
-    temperature: float,
 ) -> SingleBasisNoiseKernel[ExplicitStackedBasisWithLength[Any, Any]]:
     hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
     lambda_ = system.lattice_constant / 2
     # mu = A / lambda
-    mu = np.sqrt(2 * system.eta * Boltzmann * temperature / hbar**2)
+    mu = np.sqrt(2 * system.eta * Boltzmann * config.temperature / hbar**2)
     a = mu * lambda_
 
     kernel = get_gaussian_noise_kernel(
@@ -300,7 +300,7 @@ def get_noise_kernel(
     corrected = get_temperature_corrected_noise_operators(
         actual_hamiltonian,
         operators,
-        temperature,
+        config.temperature,
     )
     corrected_kernel = get_noise_kernel_generic(corrected)
     data = (
@@ -329,7 +329,6 @@ def get_noise_kernel(
 def get_noise_operators(
     system: PeriodicSystem,
     config: SimulationConfig,
-    temperature: float,
 ) -> SingleBasisNoiseOperatorList[
     FundamentalBasis[int],
     ExplicitStackedBasisWithLength[Any, Any],
@@ -338,7 +337,7 @@ def get_noise_operators(
     operators = get_effective_gaussian_noise_operators(
         hamiltonian,
         system.eta,
-        temperature,
+        config.temperature,
     )
 
     actual_hamiltonian = get_hamiltonian(system, config)
