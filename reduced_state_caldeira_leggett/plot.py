@@ -127,10 +127,8 @@ def plot_thermal_occupation(
 def plot_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
-    *,
-    temperature: float = 155,
 ) -> None:
-    kernel = get_noise_kernel(system, config, temperature)
+    kernel = get_noise_kernel(system, config)
     diagonal = as_diagonal_kernel(kernel)
 
     fig, _, _ = plot_diagonal_kernel(diagonal)
@@ -142,7 +140,7 @@ def plot_kernel(
     fig, _ = plot_kernel_truncation_error(kernel)
     fig.show()
 
-    corrected_operators = get_noise_operators(system, config, temperature)
+    corrected_operators = get_noise_operators(system, config)
     kernel_full = get_noise_kernel_generic(corrected_operators)
 
     fig, _, _ = plot_kernel_generic(kernel_full)
@@ -158,10 +156,8 @@ def plot_kernel(
 def plot_lindblad_operator(
     system: PeriodicSystem,
     config: SimulationConfig,
-    *,
-    temperature: float = 155,
 ) -> None:
-    operators = get_noise_operators(system, config, temperature)
+    operators = get_noise_operators(system, config)
 
     args = np.argsort(np.abs(operators["eigenvalue"]))[::-1]
 
@@ -248,9 +244,8 @@ def plot_initial_state(system: PeriodicSystem, config: SimulationConfig) -> None
 def plot_noise_operator(
     system: PeriodicSystem,
     config: SimulationConfig,
-    temperature: float,
 ) -> None:
-    operator = select_operator(get_noise_operators(system, config, temperature), 0)
+    operator = select_operator(get_noise_operators(system, config), 0)
     basis = explicit_stacked_basis_as_fundamental(operator["basis"][0])
     converted = convert_operator_to_basis(operator, StackedBasis(basis, basis))
     fig, _ax, _ = plot_operator_along_diagonal(converted)

@@ -76,9 +76,8 @@ def get_stochastic_evolution(
     initial_state = get_initial_state(system, config)
     dt = hbar / (np.max(np.abs(hamiltonian["data"])) * dt_ratio)
     times = EvenlySpacedTimeBasis(n, step, 0, n * step * dt)
-    temperature = 155
 
-    operators = get_noise_operators(system, config, temperature)
+    operators = get_noise_operators(system, config)
     operator_list = list[SingleBasisOperator[Any]]()
     args = np.argsort(np.abs(operators["eigenvalue"]))[::-1]
 

@@ -10,7 +10,9 @@ from reduced_state_caldeira_leggett.system import (
 
 if __name__ == "__main__":
     system = FREE_LITHIUM_SYSTEM
-    config = SimulationConfig(shape=(2,), resolution=(31,), n_bands=3, type="bloch")
+    config = SimulationConfig(
+        shape=(2,), resolution=(31,), n_bands=3, type="bloch", temperature=155
+    )
 
     plot_basis_states(system, config)
     plot_state_against_t(system, config, n=1000, step=500)
