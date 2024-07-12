@@ -25,7 +25,7 @@ from surface_potential_analysis.hamiltonian_builder.momentum_basis import (
     total_surface_hamiltonian,
 )
 from surface_potential_analysis.kernel.conversion import (
-    convert_kernel_to_basis,
+    convert_diagonal_kernel_to_basis,
     convert_noise_operator_list_to_basis,
 )
 from surface_potential_analysis.kernel.gaussian import (
@@ -44,6 +44,7 @@ from surface_potential_analysis.stacked_basis.conversion import (
 from surface_potential_analysis.wavepacket.get_eigenstate import (
     get_full_bloch_hamiltonian,
     get_full_wannier_hamiltonian,
+    get_wannier_basis,
 )
 from surface_potential_analysis.wavepacket.localization import (
     Wannier90Options,
@@ -64,6 +65,7 @@ if TYPE_CHECKING:
     )
     from surface_potential_analysis.operator.operator import SingleBasisOperator
     from surface_potential_analysis.potential.potential import Potential
+    from surface_potential_analysis.state_vector.state_vector import StateVector
     from surface_potential_analysis.wavepacket.localization_operator import (
         LocalizationOperator,
     )
@@ -105,6 +107,14 @@ HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
     lattice_constant=2.46e-10 / np.sqrt(2),
     mass=1.67e-27,
     gamma=0.2e12,
+)
+
+FREE_LITHIUM_SYSTEM = PeriodicSystem(
+    id="LiFree",
+    barrier_energy=0,
+    lattice_constant=3.615e-10,
+    mass=1.152414898e-26,
+    gamma=1.2e12,
 )
 
 
@@ -322,7 +332,7 @@ def get_noise_kernel(
 ) -> SingleBasisNoiseKernel[ExplicitStackedBasisWithLength[Any, Any]]:
     hamiltonian = get_hamiltonian(system, config)
 
-    return convert_kernel_to_basis(
+    return convert_diagonal_kernel_to_basis(
         get_effective_gaussian_noise_kernel(
             hamiltonian["basis"][0],
             system.eta,
@@ -348,3 +358,15 @@ def get_noise_operators(
 
     actual_hamiltonian = get_hamiltonian(system, config)
     return convert_noise_operator_list_to_basis(operators, actual_hamiltonian["basis"])
+
+
+def get_initial_state(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> StateVector[ExplicitStackedBasisWithLength[Any, Any]]:
+    wavefunctions = get_wavepacket(system, config)
+    operator = get_localisation_operator(wavefunctions)
+    basis = get_wannier_basis(wavefunctions, operator)
+    data = np.zeros(basis.n, dtype=np.complex128)
+    data[0] = 1
+    return {"basis": basis, "data": data}

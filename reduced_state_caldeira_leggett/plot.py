@@ -1,16 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from matplotlib import pyplot as plt
-from surface_potential_analysis.basis.explicit_basis import (
-    explicit_stacked_basis_as_fundamental,
-)
-from surface_potential_analysis.basis.stacked_basis import (
-    StackedBasis,
-    StackedBasisLike,
-)
 from surface_potential_analysis.kernel.kernel import as_diagonal_kernel, as_noise_kernel
 from surface_potential_analysis.kernel.kernel import (
     get_noise_kernel as get_noise_kernel_generic,
@@ -20,7 +13,6 @@ from surface_potential_analysis.kernel.plot import (
     plot_kernel_truncation_error,
 )
 from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
-from surface_potential_analysis.operator.conversion import convert_operator_to_basis
 from surface_potential_analysis.operator.operator_list import select_operator
 from surface_potential_analysis.operator.plot import (
     plot_eigenstate_occupations,
@@ -35,6 +27,7 @@ from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
 )
 from surface_potential_analysis.state_vector.plot import (
+    animate_state_3d_x,
     animate_state_over_list_1d_x,
     plot_average_band_occupation,
     plot_state_1d_k,
@@ -59,7 +52,9 @@ from reduced_state_caldeira_leggett.system import (
 )
 
 if TYPE_CHECKING:
-    from surface_potential_analysis.potential.conversion import _BL0
+    from surface_potential_analysis.basis.stacked_basis import (
+        StackedBasisWithVolumeLike,
+    )
     from surface_potential_analysis.potential.potential import Potential
 
 
@@ -245,16 +240,14 @@ def plot_noise_operator(
     config: SimulationConfig,
 ) -> None:
     operator = select_operator(get_noise_operators(system, config), 0)
-    basis = explicit_stacked_basis_as_fundamental(operator["basis"][0])
-    converted = convert_operator_to_basis(operator, StackedBasis(basis, basis))
-    fig, _ax, _ = plot_operator_along_diagonal(converted)
+    fig, _ax, _ = plot_operator_along_diagonal(operator)
 
     fig.show()
     input()
 
 
 def plot_2d_111_potential(
-    potential: Potential[StackedBasisLike[*tuple[_BL0, ...]]],
+    potential: Potential[StackedBasisWithVolumeLike[Any, Any, Any]],
 ) -> None:
     fig, _, _ = plot_potential_2d_x(potential)
     fig.show()
