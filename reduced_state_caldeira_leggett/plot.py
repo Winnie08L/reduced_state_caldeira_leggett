@@ -17,7 +17,10 @@ from surface_potential_analysis.operator.plot import (
     plot_operator_2d,
     plot_operator_along_diagonal,
 )
-from surface_potential_analysis.potential.plot import plot_potential_1d_x
+from surface_potential_analysis.potential.plot import (
+    plot_potential_1d_x,
+    plot_potential_2d_x,
+)
 from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
 )
@@ -38,6 +41,7 @@ from reduced_state_caldeira_leggett.dynamics import (
 from reduced_state_caldeira_leggett.system import (
     PeriodicSystem,
     SimulationConfig,
+    get_2d_111_potential,
     get_extended_interpolated_potential,
     get_hamiltonian,
     get_noise_kernel,
@@ -229,5 +233,15 @@ def plot_noise_operator(
     operator = select_operator(get_noise_operators(system, config), 0)
     fig, _ax, _ = plot_operator_along_diagonal(operator)
 
+    fig.show()
+    input()
+
+
+def plot_2d_111_potential(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> None:
+    potential = get_2d_111_potential(system, config.shape, config.resolution)
+    fig, _, _ = plot_potential_2d_x(potential)
     fig.show()
     input()
