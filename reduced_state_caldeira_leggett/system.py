@@ -135,23 +135,23 @@ SODIUM_COPPER_SYSTEM = PeriodicSystem(
 )
 
 
-# 1d
-def get_potential(
+def _get_potential_1d(
     system: PeriodicSystem,
 ) -> Potential[TupleBasis[FundamentalTransformedPositionBasis1d[Literal[3]]]]:
+    """Generate potential for a periodic 1D system."""
     delta_x = np.sqrt(3) * system.lattice_constant / 2
     axis = FundamentalTransformedPositionBasis1d[Literal[3]](np.array([delta_x]), 3)
     vector = 0.25 * system.barrier_energy * np.array([2, -1, -1]) * np.sqrt(3)
     return {"basis": TupleBasis(axis), "data": vector}
 
 
-def get_interpolated_potential(
+def _get_interpolated_potential(
     system: PeriodicSystem,
-    resolution: tuple[_L0Inv, ...],
+    resolution: tuple[_L0Inv],
 ) -> Potential[
     TupleBasisWithLengthLike[FundamentalTransformedPositionBasis[_L0Inv, Literal[1]]]
 ]:
-    potential = get_potential(system)
+    potential = _get_potential_1d(system)
     old = potential["basis"][0]
     basis = TupleBasis(
         TransformedPositionBasis1d[_L0Inv, Literal[3]](
@@ -169,14 +169,15 @@ def get_interpolated_potential(
 
 def get_extended_interpolated_potential(
     system: PeriodicSystem,
-    shape: tuple[_L0Inv, ...],
-    resolution: tuple[_L1Inv, ...],
+    shape: tuple[_L0Inv],
+    resolution: tuple[_L1Inv],
 ) -> Potential[
     TupleBasisWithLengthLike[
         EvenlySpacedTransformedPositionBasis[_L1Inv, _L0Inv, Literal[0], Literal[1]]
     ]
 ]:
-    interpolated = get_interpolated_potential(system, resolution)
+    """Generate potential for periodic 1D system."""
+    interpolated = _get_interpolated_potential(system, resolution)
     old = interpolated["basis"][0]
     basis = TupleBasis(
         EvenlySpacedTransformedPositionBasis[_L1Inv, _L0Inv, Literal[0], Literal[1]](
@@ -194,14 +195,23 @@ def get_extended_interpolated_potential(
 # 2d
 def get_2d_111_potential(
     system: PeriodicSystem,
-    shape: tuple[_L0Inv, ...],
-    resolution: tuple[_L0Inv, ...],
+    shape: tuple[int, ...],
+    resolution: tuple[_L0Inv, _L1Inv],
 ) -> Potential[
     TupleBasisWithLengthLike[
-        FundamentalPositionBasis[_L0Inv, Any],
-        FundamentalPositionBasis[_L0Inv, Any],
+        FundamentalPositionBasis[int, Any],
+        FundamentalPositionBasis[int, Any],
     ]
 ]:
+    """Generate potential for 2D periodic system, for 111 plane of FCC lattice.
+
+    Expression for potential from:
+
+    [1]D. J. Ward, A study of spin-echo lineshapes in helium atom scattering from adsorbates.
+
+    [2]S. P. Rittmeyer et al, Energy Dissipation during Diffusion at Metal Surfaces: Disentangling the Role of Phonons vs Electron-Hole Pairs.
+
+    """
     vector_x = np.array(
         [system.lattice_constant * shape[0], 0],
     )
@@ -225,19 +235,12 @@ def get_2d_111_potential(
             np.array([-zeta * np.cos(np.pi / 3), zeta * np.sin(np.pi / 3)]),
         ],
     )
-    V_r = []
+    potential = []
     for r in x_points.T:
-        V_i = 0
-        for g_i in g:
-            V_i += system.barrier_energy * np.cos(np.inner(g_i, r))
-        V_r.append(V_i)
-    V_r = np.array(V_r)
-    return {"basis": full_basis, "data": V_r}
-
-
-# def get_extended_2d_111_potential(system: PeriodicSystem, config: SimulationConfig):
-#     potential = get_2d_111_potential(system, config)
-#     converted = convert_potential_to_basis(potential, stacked_basis_as_fundamental_momentum_basis(potential["basis"]))
+        V_i = system.barrier_energy * np.cos(np.sum(np.multiply(g, r)))
+        potential.append(V_i)
+    potential = np.array(potential)
+    return {"basis": full_basis, "data": potential}
 
 
 def _get_full_hamiltonian(
@@ -251,10 +254,14 @@ def _get_full_hamiltonian(
 ]:
     bloch_fraction = np.array([0]) if bloch_fraction is None else bloch_fraction
 
-    if len(shape) == 1:
-        potential = get_extended_interpolated_potential(system, shape, resolution)
-    if len(shape) == 2:
-        potential = get_2d_111_potential(system, shape, resolution)
+    match len(shape):
+        case 1:
+            potential = get_extended_interpolated_potential(system, shape, resolution)
+        case 2:
+            potential = get_2d_111_potential(system, shape, resolution)
+        case _:
+            potential = ...
+
     converted = convert_potential_to_basis(
         potential,
         stacked_basis_as_fundamental_position_basis(potential["basis"]),
@@ -277,7 +284,6 @@ def get_wavepacket(
     ]:
         return _get_full_hamiltonian(
             system,
-            # (1,),
             tuple(1 for _ in config.shape),
             config.resolution,
             bloch_fraction=bloch_fraction,

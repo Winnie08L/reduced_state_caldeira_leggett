@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
 import numpy as np
 from matplotlib import pyplot as plt
 from surface_potential_analysis.kernel.kernel import as_diagonal_kernel, as_noise_kernel
@@ -27,7 +25,6 @@ from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
 )
 from surface_potential_analysis.state_vector.plot import (
-    animate_state_3d_x,
     animate_state_over_list_1d_x,
     plot_average_band_occupation,
     plot_state_1d_k,
@@ -50,12 +47,6 @@ from reduced_state_caldeira_leggett.system import (
     get_noise_kernel,
     get_noise_operators,
 )
-
-if TYPE_CHECKING:
-    from surface_potential_analysis.basis.stacked_basis import (
-        StackedBasisWithVolumeLike,
-    )
-    from surface_potential_analysis.potential.potential import Potential
 
 
 def plot_system_eigenstates(
@@ -247,24 +238,26 @@ def plot_noise_operator(
 
 
 def plot_2d_111_potential(
-    potential: Potential[StackedBasisWithVolumeLike[Any, Any, Any]],
+    system: PeriodicSystem,
+    config: SimulationConfig,
 ) -> None:
+    potential = get_2d_111_potential(system, config.shape, config.resolution)
     fig, _, _ = plot_potential_2d_x(potential)
     fig.show()
     input()
 
 
-def plot_2d_111_state_against_t(
-    system: PeriodicSystem,
-    config: SimulationConfig,
-    *,
-    n: int,
-    step: int,
-    dt_ratio: float = 500,
-) -> None:
-    potential = get_2d_111_potential(system, config.shape, config.resolution)
-    fig, ax, _ = plot_potential_2d_x(potential)
-    states = get_stochastic_evolution(system, config, n=n, step=step, dt_ratio=dt_ratio)
-    _fig, _, _animation_ = animate_state_3d_x(states, ax=ax.twinx())
-    fig.show()
-    input()
+# def plot_2d_111_state_against_t(
+#     system: PeriodicSystem,
+#     config: SimulationConfig,
+#     *,
+#     n: int,
+#     step: int,
+#     dt_ratio: float = 500,
+# ) -> None:
+#     potential = get_2d_111_potential(system, config.shape, config.resolution)
+#     fig, ax, _ = plot_potential_2d_x(potential)
+#     states = get_stochastic_evolution(system, config, n=n, step=step, dt_ratio=dt_ratio)
+#     _fig, _, _animation_ = animate_state_3d_x(states, ax=ax.twinx())
+#     fig.show()
+#     input()
