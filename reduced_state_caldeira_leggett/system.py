@@ -30,6 +30,8 @@ from surface_potential_analysis.kernel.conversion import (
 )
 from surface_potential_analysis.kernel.gaussian import (
     get_effective_gaussian_noise_kernel,
+    get_effective_gaussian_parameters,
+    get_gaussian_isotropic_noise_kernel,
     get_temperature_corrected_effective_gaussian_noise_operators,
 )
 from surface_potential_analysis.operator.operator import as_operator
@@ -60,6 +62,7 @@ if TYPE_CHECKING:
         ExplicitStackedBasisWithLength,
     )
     from surface_potential_analysis.kernel.kernel import (
+        SingleBasisDiagonalNoiseOperatorList,
         SingleBasisNoiseKernel,
         SingleBasisNoiseOperatorList,
     )
@@ -376,3 +379,71 @@ def get_initial_state(
     data = np.zeros(basis.n, dtype=np.complex128)
     data[0] = 1
     return {"basis": basis, "data": data}
+
+
+def new_noise_operators(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    *,
+    n: int = 1,
+    lambda_factor: float = 2 * np.sqrt(2),
+) -> SingleBasisDiagonalNoiseOperatorList[
+    FundamentalBasis[int],
+    TupleBasisWithLengthLike[FundamentalPositionBasis[Any, Literal[1]]],
+]:
+    """To fit the noise correlation using trig functions generated from hamiltonian,
+    expressed using a truncated trig series include only the first n sine/cos terms.
+
+    Return in the order of [const term, first n sine terms, first n cos terms]
+    and also their cprresponding coefficients.
+
+    """
+    hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
+    a, lambda_ = get_effective_gaussian_parameters(
+        hamiltonian["basis"][0],
+        system.eta,
+        config.temperature,
+        lambda_factor=lambda_factor,
+    )
+    print(a)
+    basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
+    k = 2 * np.pi / basis_x.shape[0]
+    nx_points = BasisUtil(basis_x).fundamental_stacked_nx_points[0]
+
+    # try--------------------------------------------------------------------
+    # define a variable n: the number of trig terms to include, in total 2n+1 terms
+    sines = [
+        np.sin(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
+    ]
+    coses = [
+        np.cos(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
+    ]
+    data = np.append(np.ones_like(nx_points).astype(np.complex128), [sines, coses])
+    # get coeff
+    correlation = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
+    if n == 0:
+        peak = np.array([correlation["data"][0]])
+    else:
+        peak = np.concatenate(
+            (correlation["data"][-n:], correlation["data"][: (n + 1)]),
+        )
+    ft_peak = np.fft.rfft(peak, norm="forward")
+    zero_freq = np.array([ft_peak[0]])
+    if n == 0:
+        coeff = np.array([ft_peak[0]])
+    else:
+        # coeff = np.append(zero_freq, [ft_peak[-n:], ft_peak[-n:]])
+        coeff = np.concatenate(
+            [
+                zero_freq,
+                (ft_peak[1:]) / 2,
+                (-ft_peak[1:][::-1]) / 2,
+            ],
+        )
+    # ----------------------------------------------------------------------------
+
+    return {
+        "basis": TupleBasis(FundamentalBasis(2 * n + 1), TupleBasis(basis_x, basis_x)),
+        "data": data.astype(np.complex128),
+        "eigenvalue": coeff.astype(np.complex128),
+    }

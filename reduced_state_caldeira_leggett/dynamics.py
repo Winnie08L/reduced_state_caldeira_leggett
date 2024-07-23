@@ -80,6 +80,7 @@ def get_stochastic_evolution(
     times = EvenlySpacedTimeBasis(n, step, 0, n * step * dt)
 
     operators = get_noise_operators(system, config)
+    # operators = new_noise_operators(system, config)
     operator_list = list[SingleBasisOperator[Any]]()
     args = np.argsort(np.abs(operators["eigenvalue"]))[::-1]
 

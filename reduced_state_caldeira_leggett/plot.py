@@ -1,8 +1,19 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, TypeVar
+
 import numpy as np
 from matplotlib import pyplot as plt
-from surface_potential_analysis.kernel.kernel import as_diagonal_kernel, as_noise_kernel
+from surface_potential_analysis.kernel.gaussian import (
+    get_effective_gaussian_parameters,
+    get_gaussian_isotropic_noise_kernel,
+)
+from surface_potential_analysis.kernel.kernel import (
+    as_diagonal_kernel,
+    as_isotropic_kernel,
+    as_noise_kernel,
+    get_diagonal_noise_kernel,
+)
 from surface_potential_analysis.kernel.kernel import (
     get_noise_kernel as get_noise_kernel_generic,
 )
@@ -11,7 +22,9 @@ from surface_potential_analysis.kernel.plot import (
     plot_kernel_truncation_error,
 )
 from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
-from surface_potential_analysis.operator.operator_list import select_operator
+from surface_potential_analysis.operator.operator_list import (
+    select_operator,
+)
 from surface_potential_analysis.operator.plot import (
     plot_eigenstate_occupations,
     plot_operator_2d,
@@ -20,6 +33,13 @@ from surface_potential_analysis.operator.plot import (
 from surface_potential_analysis.potential.plot import (
     plot_potential_1d_x,
     plot_potential_2d_x,
+)
+from surface_potential_analysis.stacked_basis.conversion import (
+    stacked_basis_as_fundamental_position_basis,
+)
+from surface_potential_analysis.stacked_basis.util import get_x_coordinates_in_axes
+from surface_potential_analysis.state_vector.conversion import (
+    convert_state_vector_list_to_basis,
 )
 from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
@@ -33,6 +53,12 @@ from surface_potential_analysis.state_vector.plot import (
 from surface_potential_analysis.state_vector.state_vector_list import (
     state_vector_list_into_iter,
 )
+from surface_potential_analysis.util.plot import Scale, build_animation, plot_data_1d
+from surface_potential_analysis.util.util import (
+    Measure,
+    get_data_in_axes,
+    get_measured_data,
+)
 
 from reduced_state_caldeira_leggett.dynamics import (
     get_initial_state,
@@ -41,12 +67,22 @@ from reduced_state_caldeira_leggett.dynamics import (
 from reduced_state_caldeira_leggett.system import (
     PeriodicSystem,
     SimulationConfig,
+    _get_full_hamiltonian,
     get_2d_111_potential,
     get_extended_interpolated_potential,
     get_hamiltonian,
     get_noise_kernel,
     get_noise_operators,
+    new_noise_operators,
 )
+
+if TYPE_CHECKING:
+    from matplotlib.animation import ArtistAnimation
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    from surface_potential_analysis.basis.stacked_basis import TupleBasisLike
+    from surface_potential_analysis.state_vector.state_vector import StateVector
+    from surface_potential_analysis.types import SingleStackedIndexLike
 
 
 def plot_system_eigenstates(
@@ -125,6 +161,7 @@ def plot_kernel(
 
     fig, _, _ = plot_diagonal_kernel(diagonal)
     fig.show()
+    input()
 
     fig, _, _ = plot_kernel_generic(as_noise_kernel(diagonal))
     fig.show()
@@ -247,6 +284,69 @@ def plot_2d_111_potential(
     input()
 
 
+_L0Inv = TypeVar("_L0Inv", bound=int)
+
+
+def animate_data_2d_x(
+    basis: TupleBasisLike[*tuple[Any, ...]],
+    data: np.ndarray[tuple[_L0Inv], np.dtype[np.complex128]],
+    axes: tuple[int, int] = (0, 1),
+    idx: SingleStackedIndexLike | None = None,
+    *,
+    ax: Axes | None = None,
+    scale: Scale = "linear",
+    clim: tuple[float | None, float | None] = (None, None),
+    measure: Measure = "abs",
+) -> tuple[Figure, Axes, ArtistAnimation]:
+    idx = tuple(0 for _ in range(basis.ndim - len(axes))) if idx is None else idx
+    clim = (0.0, clim[1]) if clim[0] is None and measure == "abs" else clim
+
+    coordinates = get_x_coordinates_in_axes(basis, axes, idx)
+    data_in_axis = get_data_in_axes(data.reshape(basis.shape), axes, idx)
+    measured_data = get_measured_data(data_in_axis, measure)
+
+    fig, ax, ani = build_animation(
+        lambda i, ax: ax.pcolormesh(
+            *coordinates[:2, :, :, i],
+            measured_data[:, :, i],
+            shading="nearest",
+        ),
+        data.shape[2],
+        ax=ax,
+        scale=scale,
+        clim=clim,
+    )
+    ax.set_aspect("equal", adjustable="box")
+    fig.colorbar(ax.collections[0], ax=ax, format="%4.1e")
+
+    ax.set_xlabel(f"x{axes[0]} axis")
+    ax.set_ylabel(f"x{axes[1]} axis")
+    return fig, ax, ani
+
+
+def animate_state_2d_x(
+    state: StateVector[TupleBasisLike[*tuple[Any, ...]]],
+    axes: tuple[int, int] = (0, 1),
+    idx: SingleStackedIndexLike | None = None,
+    *,
+    ax: Axes | None = None,
+    scale: Scale = "linear",
+) -> tuple[Figure, Axes, ArtistAnimation]:
+    converted = convert_state_vector_list_to_basis(
+        state,
+        stacked_basis_as_fundamental_position_basis(state["basis"]),
+    )
+    return animate_data_2d_x(
+        converted["basis"],
+        converted["data"].reshape(converted["basis"].shape),
+        axes,
+        idx,
+        ax=ax,
+        scale=scale,
+        measure="real",
+    )
+
+
 # def plot_2d_111_state_against_t(
 #     system: PeriodicSystem,
 #     config: SimulationConfig,
@@ -258,6 +358,106 @@ def plot_2d_111_potential(
 #     potential = get_2d_111_potential(system, config.shape, config.resolution)
 #     fig, ax, _ = plot_potential_2d_x(potential)
 #     states = get_stochastic_evolution(system, config, n=n, step=step, dt_ratio=dt_ratio)
-#     _fig, _, _animation_ = animate_state_3d_x(states, ax=ax.twinx())
+#     _fig, _, _animation_ = animate_state_2d_x(states, ax=ax.twinx())
 #     fig.show()
 #     input()
+
+
+def plot_new_noise_operators(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    *,
+    n: int = 1,
+) -> None:
+    operators = new_noise_operators(system, config, n=n)
+    # op = select_operator_diagonal(operators, idx=1)
+    # fig1, ax1, _ = plot_operator_along_diagonal(as_operator(op), measure="real")
+    # ax1.set_title("fitted noise operator")
+    # fig1.show()
+    kernel = get_diagonal_noise_kernel(operators)
+    # ----------try-
+    # kernel_isotropic = as_isotropic_kernel(kernel)
+    # data = kernel_isotropic["data"]
+    # fig, ax, _ = plot_data_1d(
+    #     data, np.arange(data.size), scale="linear", measure="real"
+    # )
+    # ax.set_title("fitted")
+    # fig.show()
+    # -------------------
+    # kernel_old = get_effective_gaussian_noise_kernel(
+    #     kernel["basis"][0][0],
+    #     system.eta,
+    #     config.temperature,
+    # )
+    # kernel_old = get_noise_kernel(system, config)
+    # kernel_old = convert_kernel_to_basis(kernel_old, kernel["basis"][0])
+    # kernel_old = as_diagonal_kernel(kernel_old)
+    # ---old-----------
+    fig2, ax2, _ = plot_diagonal_kernel(kernel)
+    # -----------
+    # kernel_old["data"] -= kernel["data"]
+    # fig3, ax3, _ = plot_diagonal_kernel(kernel_old)
+    # ax3.set_title("difference")
+    # fig3.show()
+    ax2.set_title("fitted noise kernel")
+    fig2.show()
+    input()
+
+
+def plot_isotropic_noise_kernel(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> None:
+    # 1d
+    hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
+    a, lambda_ = get_effective_gaussian_parameters(
+        hamiltonian["basis"][0],
+        system.eta,
+        config.temperature,
+        lambda_factor=2 * np.sqrt(2),
+    )
+
+    basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
+    kernel_real = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
+    data = kernel_real["data"].reshape(kernel_real["basis"].shape)
+    fig, ax, line = plot_data_1d(
+        data,
+        np.arange(data.size),
+        scale="linear",
+        measure="real",
+    )
+    fig, _, line1 = plot_data_1d(
+        data,
+        np.arange(data.size),
+        ax=ax,
+        scale="linear",
+        measure="imag",
+    )
+    line.set_label("true noise, real")
+    line1.set_label("true noise, imag")
+    ax.set_title("noise kernel")
+    fig.show()
+
+    operators = new_noise_operators(system, config, n=1)
+    kernel = get_diagonal_noise_kernel(operators)
+    kernel_isotropic = as_isotropic_kernel(kernel)
+    data = kernel_isotropic["data"]
+    fig, _, line2 = plot_data_1d(
+        data,
+        np.arange(data.size),
+        ax=ax,
+        scale="linear",
+        measure="real",
+    )
+    fig, _, line3 = plot_data_1d(
+        data,
+        np.arange(data.size),
+        ax=ax,
+        scale="linear",
+        measure="imag",
+    )
+    line2.set_label("fitted noise, real")
+    line3.set_label("fitted noise, imag")
+    ax.legend()
+    fig.show()
+    input()
