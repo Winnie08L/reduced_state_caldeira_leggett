@@ -43,6 +43,7 @@ from surface_potential_analysis.stacked_basis.conversion import (
     stacked_basis_as_fundamental_momentum_basis,
     stacked_basis_as_fundamental_position_basis,
 )
+from surface_potential_analysis.util.interpolation import pad_ft_points
 from surface_potential_analysis.wavepacket.get_eigenstate import (
     get_full_bloch_hamiltonian,
     get_full_wannier_hamiltonian,
@@ -391,7 +392,9 @@ def new_noise_operators(
     FundamentalBasis[int],
     TupleBasisWithLengthLike[FundamentalPositionBasis[Any, Literal[1]]],
 ]:
-    """To fit the noise correlation using trig functions generated from hamiltonian,
+    """Generate noise operators using a fourier expansion.
+
+    To fit the noise correlation using trig functions generated from hamiltonian,
     expressed using a truncated trig series include only the first n sine/cos terms.
 
     Return in the order of [const term, first n sine terms, first n cos terms]
@@ -405,45 +408,40 @@ def new_noise_operators(
         config.temperature,
         lambda_factor=lambda_factor,
     )
-    print(a)
+
     basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
-    k = 2 * np.pi / basis_x.shape[0]
-    nx_points = BasisUtil(basis_x).fundamental_stacked_nx_points[0]
+    k = 2 * np.pi / (2 * n + 1)
+    nk_points = BasisUtil(basis_x).fundamental_stacked_nk_points[0]
 
     # try--------------------------------------------------------------------
     # define a variable n: the number of trig terms to include, in total 2n+1 terms
     sines = [
-        np.sin(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
+        np.sin(i * k * nk_points).astype(np.complex128) for i in np.arange(1, n + 1)
     ]
     coses = [
-        np.cos(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
+        np.cos(i * k * nk_points).astype(np.complex128) for i in np.arange(1, n + 1)
     ]
-    data = np.append(np.ones_like(nx_points).astype(np.complex128), [sines, coses])
-    # get coeff
+    data = np.append(
+        np.ones_like(nk_points).astype(np.complex128),
+        [sines, coses[::-1]],
+    )
+
     correlation = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
-    if n == 0:
-        peak = np.array([correlation["data"][0]])
-    else:
-        peak = np.concatenate(
-            (correlation["data"][-n:], correlation["data"][: (n + 1)]),
-        )
-    ft_peak = np.fft.rfft(peak, norm="forward")
-    zero_freq = np.array([ft_peak[0]])
-    if n == 0:
-        coeff = np.array([ft_peak[0]])
-    else:
-        # coeff = np.append(zero_freq, [ft_peak[-n:], ft_peak[-n:]])
-        coeff = np.concatenate(
-            [
-                zero_freq,
-                (ft_peak[1:]) / 2,
-                (-ft_peak[1:][::-1]) / 2,
-            ],
-        )
+
+    ft_peak = np.fft.ifft(
+        pad_ft_points(correlation["data"], (2 * n + 1,), (0,)),
+        norm="forward",
+    )
+
+    # Note: since positive and negative are equal
+    # We dont need to worry about which we assign to cos and which to sin
+    ft_peak[1::] *= 2
+    ft_peak *= nk_points.size / ft_peak.size
+
     # ----------------------------------------------------------------------------
 
     return {
         "basis": TupleBasis(FundamentalBasis(2 * n + 1), TupleBasis(basis_x, basis_x)),
-        "data": data.astype(np.complex128),
-        "eigenvalue": coeff.astype(np.complex128),
+        "data": data.astype(np.complex128) / np.sqrt(nk_points.size),
+        "eigenvalue": ft_peak.astype(np.complex128),
     }
