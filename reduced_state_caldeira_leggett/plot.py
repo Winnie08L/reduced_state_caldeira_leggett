@@ -53,7 +53,11 @@ from surface_potential_analysis.state_vector.plot import (
 from surface_potential_analysis.state_vector.state_vector_list import (
     state_vector_list_into_iter,
 )
-from surface_potential_analysis.util.plot import Scale, build_animation, plot_data_1d
+from surface_potential_analysis.util.plot import (
+    Scale,
+    build_animation,
+    plot_data_1d_x,
+)
 from surface_potential_analysis.util.util import (
     Measure,
     get_data_in_axes,
@@ -419,16 +423,16 @@ def plot_isotropic_noise_kernel(
 
     basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
     kernel_real = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
-    data = kernel_real["data"].reshape(kernel_real["basis"].shape)
-    fig, ax, line = plot_data_1d(
-        data,
-        np.arange(data.size),
+    kernel_real["data"].reshape(kernel_real["basis"].shape)
+    fig, ax, line = plot_data_1d_x(
+        kernel_real["basis"],
+        kernel_real["data"],
         scale="linear",
         measure="real",
     )
-    fig, _, line1 = plot_data_1d(
-        data,
-        np.arange(data.size),
+    fig, _, line1 = plot_data_1d_x(
+        kernel_real["basis"],
+        kernel_real["data"],
         ax=ax,
         scale="linear",
         measure="imag",
@@ -438,20 +442,20 @@ def plot_isotropic_noise_kernel(
     ax.set_title("noise kernel")
     fig.show()
 
-    operators = new_noise_operators(system, config, n=1)
+    operators = new_noise_operators(system, config, n=2)
     kernel = get_diagonal_noise_kernel(operators)
     kernel_isotropic = as_isotropic_kernel(kernel)
-    data = kernel_isotropic["data"]
-    fig, _, line2 = plot_data_1d(
-        data,
-        np.arange(data.size),
+    kernel_isotropic["data"]
+    fig, _, line2 = plot_data_1d_x(
+        kernel_isotropic["basis"],
+        kernel_isotropic["data"],
         ax=ax,
         scale="linear",
         measure="real",
     )
-    fig, _, line3 = plot_data_1d(
-        data,
-        np.arange(data.size),
+    fig, _, line3 = plot_data_1d_x(
+        kernel_isotropic["basis"],
+        kernel_isotropic["data"],
         ax=ax,
         scale="linear",
         measure="imag",

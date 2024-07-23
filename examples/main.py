@@ -9,7 +9,7 @@ from reduced_state_caldeira_leggett.system import (
 if __name__ == "__main__":
     system = HYDROGEN_NICKEL_SYSTEM
     config = SimulationConfig(
-        shape=(2,),
+        shape=(1,),
         resolution=(31,),
         n_bands=3,
         type="bloch",
