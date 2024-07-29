@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 from matplotlib import pyplot as plt
+from surface_potential_analysis.basis.stacked_basis import TupleBasisWithLengthLike
 from surface_potential_analysis.kernel.gaussian import (
     get_effective_gaussian_parameters,
     get_gaussian_isotropic_noise_kernel,
 )
 from surface_potential_analysis.kernel.kernel import (
+    IsotropicNoiseKernel,
     as_diagonal_kernel,
     as_isotropic_kernel,
     as_noise_kernel,
@@ -22,8 +24,10 @@ from surface_potential_analysis.kernel.plot import (
     plot_kernel_truncation_error,
 )
 from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
+from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.operator.operator_list import (
     select_operator,
+    select_operator_diagonal,
 )
 from surface_potential_analysis.operator.plot import (
     plot_eigenstate_occupations,
@@ -71,9 +75,11 @@ from reduced_state_caldeira_leggett.system import (
     get_2d_111_potential,
     get_extended_interpolated_potential,
     get_hamiltonian,
+    get_lorentzian_isotropic_noise_kernel,
     get_noise_kernel,
     get_noise_operators,
-    new_noise_operators,
+    solve_linear_general_isotropic_noise,
+    solve_linear_lorentzian_isotropic_noise,
 )
 
 if TYPE_CHECKING:
@@ -363,44 +369,20 @@ def animate_state_2d_x(
 #     input()
 
 
+_B0 = TypeVar("_B0", bound=TupleBasisWithLengthLike[Any, Any])
+
+
 def plot_new_noise_operators(
-    system: PeriodicSystem,
-    config: SimulationConfig,
+    kernel: IsotropicNoiseKernel[_B0],
     *,
     n: int = 1,
 ) -> None:
-    operators = new_noise_operators(system, config, n=n)
-    # op = select_operator_diagonal(operators, idx=1)
-    # fig1, ax1, _ = plot_operator_along_diagonal(as_operator(op), measure="real")
-    # ax1.set_title("fitted noise operator")
-    # fig1.show()
-    kernel = get_diagonal_noise_kernel(operators)
-    # ----------try-
-    # kernel_isotropic = as_isotropic_kernel(kernel)
-    # data = kernel_isotropic["data"]
-    # fig, ax, _ = plot_data_1d(
-    #     data, np.arange(data.size), scale="linear", measure="real"
-    # )
-    # ax.set_title("fitted")
-    # fig.show()
-    # -------------------
-    # kernel_old = get_effective_gaussian_noise_kernel(
-    #     kernel["basis"][0][0],
-    #     system.eta,
-    #     config.temperature,
-    # )
-    # kernel_old = get_noise_kernel(system, config)
-    # kernel_old = convert_kernel_to_basis(kernel_old, kernel["basis"][0])
-    # kernel_old = as_diagonal_kernel(kernel_old)
-    # ---old-----------
-    fig2, ax2, _ = plot_diagonal_kernel(kernel)
-    # -----------
-    # kernel_old["data"] -= kernel["data"]
-    # fig3, ax3, _ = plot_diagonal_kernel(kernel_old)
-    # ax3.set_title("difference")
-    # fig3.show()
-    ax2.set_title("fitted noise kernel")
-    fig2.show()
+    """Plot the noise operators generated."""
+    operators = solve_linear_general_isotropic_noise(kernel, n=n)
+    op = select_operator_diagonal(operators, idx=1)
+    fig1, ax1, _ = plot_operator_along_diagonal(as_operator(op), measure="real")
+    ax1.set_title("fitted noise operator")
+    fig1.show()
     input()
 
 
@@ -408,7 +390,9 @@ def plot_isotropic_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
-    # 1d
+    """Plot 1d general isotropic noise kernel, comparing the true one and the fitted one,
+    gaussian noise is used here for testing.
+    """
     hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
     a, lambda_ = get_effective_gaussian_parameters(
         hamiltonian["basis"][0],
@@ -438,7 +422,61 @@ def plot_isotropic_noise_kernel(
     ax.set_title("noise kernel")
     fig.show()
 
-    operators = new_noise_operators(system, config, n=1)
+    # fitted noise kernel-----------------------------
+    # operators = solve_linear_gaussian_isotropic_noise(system, config, n=1)
+    operators = solve_linear_general_isotropic_noise(kernel_real, n=20)
+    kernel = get_diagonal_noise_kernel(operators)
+    kernel_isotropic = as_isotropic_kernel(kernel)
+    data = kernel_isotropic["data"]
+    fig, _, line2 = plot_data_1d(
+        data,
+        np.arange(data.size),
+        ax=ax,
+        scale="linear",
+        measure="real",
+    )
+    fig, _, line3 = plot_data_1d(
+        data,
+        np.arange(data.size),
+        ax=ax,
+        scale="linear",
+        measure="imag",
+    )
+    line2.set_label("fitted noise, real")
+    line3.set_label("fitted noise, imag")
+    ax.legend()
+    fig.show()
+    input()
+
+
+def plot_isotropic_lorentzian_noise(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> None:
+    # 1d lorentzian---------------------------
+    hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
+    basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
+    kernel_lorentz = get_lorentzian_isotropic_noise_kernel(basis_x)
+    data = kernel_lorentz["data"].reshape(kernel_lorentz["basis"].shape)
+    fig, ax, line = plot_data_1d(
+        data,
+        np.arange(data.size),
+        scale="linear",
+        measure="real",
+    )
+    fig, _, line1 = plot_data_1d(
+        data,
+        np.arange(data.size),
+        ax=ax,
+        scale="linear",
+        measure="imag",
+    )
+    line.set_label("true noise, real")
+    line1.set_label("true noise, imag")
+    ax.set_title("noise kernel")
+    fig.show()
+
+    operators = solve_linear_lorentzian_isotropic_noise(system, config, n=10)
     kernel = get_diagonal_noise_kernel(operators)
     kernel_isotropic = as_isotropic_kernel(kernel)
     data = kernel_isotropic["data"]
