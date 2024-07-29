@@ -38,6 +38,7 @@ from surface_potential_analysis.potential.plot import (
     plot_potential_1d_x,
     plot_potential_2d_x,
 )
+
 from surface_potential_analysis.stacked_basis.conversion import (
     stacked_basis_as_fundamental_position_basis,
 )
@@ -45,6 +46,7 @@ from surface_potential_analysis.stacked_basis.util import get_x_coordinates_in_a
 from surface_potential_analysis.state_vector.conversion import (
     convert_state_vector_list_to_basis,
 )
+
 from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
 )
@@ -71,15 +73,19 @@ from reduced_state_caldeira_leggett.dynamics import (
 from reduced_state_caldeira_leggett.system import (
     PeriodicSystem,
     SimulationConfig,
+
     _get_full_hamiltonian,
     get_2d_111_potential,
     get_extended_interpolated_potential,
+
     get_hamiltonian,
     get_lorentzian_isotropic_noise_kernel,
     get_noise_kernel,
     get_noise_operators,
+
     solve_linear_general_isotropic_noise,
     solve_linear_lorentzian_isotropic_noise,
+
 )
 
 if TYPE_CHECKING:
@@ -96,7 +102,7 @@ def plot_system_eigenstates(
     config: SimulationConfig,
 ) -> None:
     """Plot the potential against position."""
-    potential = get_extended_interpolated_potential(
+    potential = get_potential_1d(
         system,
         config.shape,
         config.resolution,
@@ -122,7 +128,7 @@ def plot_basis_states(
     config: SimulationConfig,
 ) -> None:
     """Plot the potential against position."""
-    potential = get_extended_interpolated_potential(
+    potential = get_potential_1d(
         system,
         config.shape,
         config.resolution,
@@ -214,7 +220,7 @@ def plot_state_against_t(
     step: int,
     dt_ratio: float = 500,
 ) -> None:
-    potential = get_extended_interpolated_potential(
+    potential = get_potential_1d(
         system,
         config.shape,
         config.resolution,
@@ -284,6 +290,7 @@ def plot_2d_111_potential(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
+
     potential = get_2d_111_potential(system, config.shape, config.resolution)
     fig, _, _ = plot_potential_2d_x(potential)
     fig.show()
@@ -497,5 +504,6 @@ def plot_isotropic_lorentzian_noise(
     line2.set_label("fitted noise, real")
     line3.set_label("fitted noise, imag")
     ax.legend()
+
     fig.show()
     input()
