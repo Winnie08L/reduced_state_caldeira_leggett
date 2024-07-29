@@ -442,7 +442,7 @@ def plot_isotropic_noise_kernel(
     ax.set_title("noise kernel")
     fig.show()
 
-    operators = new_noise_operators(system, config, n=2)
+    operators = new_noise_operators(system, config, lambda_factor=2 * np.sqrt(2))
     kernel = get_diagonal_noise_kernel(operators)
     kernel_isotropic = as_isotropic_kernel(kernel)
     kernel_isotropic["data"]

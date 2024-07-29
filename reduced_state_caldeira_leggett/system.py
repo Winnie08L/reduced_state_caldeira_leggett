@@ -34,6 +34,9 @@ from surface_potential_analysis.kernel.gaussian import (
     get_gaussian_isotropic_noise_kernel,
     get_temperature_corrected_effective_gaussian_noise_operators,
 )
+from surface_potential_analysis.kernel.kernel import (
+    get_noise_operators_real_isotropic,
+)
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.potential.conversion import convert_potential_to_basis
 from surface_potential_analysis.stacked_basis.build import (
@@ -43,7 +46,6 @@ from surface_potential_analysis.stacked_basis.conversion import (
     stacked_basis_as_fundamental_momentum_basis,
     stacked_basis_as_fundamental_position_basis,
 )
-from surface_potential_analysis.util.interpolation import pad_ft_points
 from surface_potential_analysis.wavepacket.get_eigenstate import (
     get_full_bloch_hamiltonian,
     get_full_wannier_hamiltonian,
@@ -121,14 +123,6 @@ FREE_LITHIUM_SYSTEM = PeriodicSystem(
     gamma=1.2e12,
 )
 
-
-FREE_LITHIUM_SYSTEM = PeriodicSystem(
-    id="LiFree",
-    barrier_energy=0,
-    lattice_constant=3.615e-10,
-    mass=1.152414898e-26,
-    gamma=1.2e12,
-)
 
 SODIUM_COPPER_SYSTEM = PeriodicSystem(
     id="NaCu",
@@ -386,11 +380,11 @@ def new_noise_operators(
     system: PeriodicSystem,
     config: SimulationConfig,
     *,
-    n: int = 1,
+    n: int | None = None,
     lambda_factor: float = 2 * np.sqrt(2),
 ) -> SingleBasisDiagonalNoiseOperatorList[
     FundamentalBasis[int],
-    TupleBasisWithLengthLike[FundamentalPositionBasis[Any, Literal[1]]],
+    TupleBasisWithLengthLike[*tuple[FundamentalPositionBasis[Any, Any], ...]],
 ]:
     """Generate noise operators using a fourier expansion.
 
@@ -410,38 +404,6 @@ def new_noise_operators(
     )
 
     basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
-    k = 2 * np.pi / (2 * n + 1)
-    nk_points = BasisUtil(basis_x).fundamental_stacked_nk_points[0]
-
-    # try--------------------------------------------------------------------
-    # define a variable n: the number of trig terms to include, in total 2n+1 terms
-    sines = [
-        np.sin(i * k * nk_points).astype(np.complex128) for i in np.arange(1, n + 1)
-    ]
-    coses = [
-        np.cos(i * k * nk_points).astype(np.complex128) for i in np.arange(1, n + 1)
-    ]
-    data = np.append(
-        np.ones_like(nk_points).astype(np.complex128),
-        [sines, coses[::-1]],
-    )
-
     correlation = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
 
-    ft_peak = np.fft.ifft(
-        pad_ft_points(correlation["data"], (2 * n + 1,), (0,)),
-        norm="forward",
-    )
-
-    # Note: since positive and negative are equal
-    # We dont need to worry about which we assign to cos and which to sin
-    ft_peak[1::] *= 2
-    ft_peak *= nk_points.size / ft_peak.size
-
-    # ----------------------------------------------------------------------------
-
-    return {
-        "basis": TupleBasis(FundamentalBasis(2 * n + 1), TupleBasis(basis_x, basis_x)),
-        "data": data.astype(np.complex128) / np.sqrt(nk_points.size),
-        "eigenvalue": ft_peak.astype(np.complex128),
-    }
+    return get_noise_operators_real_isotropic(correlation, n=n)
