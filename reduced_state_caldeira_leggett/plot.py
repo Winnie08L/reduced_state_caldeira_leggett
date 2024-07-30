@@ -73,16 +73,13 @@ from reduced_state_caldeira_leggett.dynamics import (
 from reduced_state_caldeira_leggett.system import (
     PeriodicSystem,
     SimulationConfig,
-
     _get_full_hamiltonian,
-    get_2d_111_potential,
+    get_potential_2d,
     get_extended_interpolated_potential,
-
     get_hamiltonian,
     get_lorentzian_isotropic_noise_kernel,
     get_noise_kernel,
     get_noise_operators,
-
     solve_linear_general_isotropic_noise,
     solve_linear_lorentzian_isotropic_noise,
 
@@ -291,89 +288,10 @@ def plot_2d_111_potential(
     config: SimulationConfig,
 ) -> None:
 
-    potential = get_2d_111_potential(system, config.shape, config.resolution)
+    potential = get_potential_2d(system, config.shape, config.resolution)
     fig, _, _ = plot_potential_2d_x(potential)
     fig.show()
     input()
-
-
-_L0Inv = TypeVar("_L0Inv", bound=int)
-
-
-def animate_data_2d_x(
-    basis: TupleBasisLike[*tuple[Any, ...]],
-    data: np.ndarray[tuple[_L0Inv], np.dtype[np.complex128]],
-    axes: tuple[int, int] = (0, 1),
-    idx: SingleStackedIndexLike | None = None,
-    *,
-    ax: Axes | None = None,
-    scale: Scale = "linear",
-    clim: tuple[float | None, float | None] = (None, None),
-    measure: Measure = "abs",
-) -> tuple[Figure, Axes, ArtistAnimation]:
-    idx = tuple(0 for _ in range(basis.ndim - len(axes))) if idx is None else idx
-    clim = (0.0, clim[1]) if clim[0] is None and measure == "abs" else clim
-
-    coordinates = get_x_coordinates_in_axes(basis, axes, idx)
-    data_in_axis = get_data_in_axes(data.reshape(basis.shape), axes, idx)
-    measured_data = get_measured_data(data_in_axis, measure)
-
-    fig, ax, ani = build_animation(
-        lambda i, ax: ax.pcolormesh(
-            *coordinates[:2, :, :, i],
-            measured_data[:, :, i],
-            shading="nearest",
-        ),
-        data.shape[2],
-        ax=ax,
-        scale=scale,
-        clim=clim,
-    )
-    ax.set_aspect("equal", adjustable="box")
-    fig.colorbar(ax.collections[0], ax=ax, format="%4.1e")
-
-    ax.set_xlabel(f"x{axes[0]} axis")
-    ax.set_ylabel(f"x{axes[1]} axis")
-    return fig, ax, ani
-
-
-def animate_state_2d_x(
-    state: StateVector[TupleBasisLike[*tuple[Any, ...]]],
-    axes: tuple[int, int] = (0, 1),
-    idx: SingleStackedIndexLike | None = None,
-    *,
-    ax: Axes | None = None,
-    scale: Scale = "linear",
-) -> tuple[Figure, Axes, ArtistAnimation]:
-    converted = convert_state_vector_list_to_basis(
-        state,
-        stacked_basis_as_fundamental_position_basis(state["basis"]),
-    )
-    return animate_data_2d_x(
-        converted["basis"],
-        converted["data"].reshape(converted["basis"].shape),
-        axes,
-        idx,
-        ax=ax,
-        scale=scale,
-        measure="real",
-    )
-
-
-# def plot_2d_111_state_against_t(
-#     system: PeriodicSystem,
-#     config: SimulationConfig,
-#     *,
-#     n: int,
-#     step: int,
-#     dt_ratio: float = 500,
-# ) -> None:
-#     potential = get_2d_111_potential(system, config.shape, config.resolution)
-#     fig, ax, _ = plot_potential_2d_x(potential)
-#     states = get_stochastic_evolution(system, config, n=n, step=step, dt_ratio=dt_ratio)
-#     _fig, _, _animation_ = animate_state_2d_x(states, ax=ax.twinx())
-#     fig.show()
-#     input()
 
 
 _B0 = TypeVar("_B0", bound=TupleBasisWithLengthLike[Any, Any])
@@ -393,7 +311,7 @@ def plot_new_noise_operators(
     input()
 
 
-def plot_isotropic_noise_kernel(
+def plot_gaussian_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
@@ -428,9 +346,7 @@ def plot_isotropic_noise_kernel(
     line1.set_label("true noise, imag")
     ax.set_title("noise kernel")
     fig.show()
-
-    # fitted noise kernel-----------------------------
-    # operators = solve_linear_gaussian_isotropic_noise(system, config, n=1)
+    
     operators = solve_linear_general_isotropic_noise(kernel_real, n=20)
     kernel = get_diagonal_noise_kernel(operators)
     kernel_isotropic = as_isotropic_kernel(kernel)
@@ -455,16 +371,14 @@ def plot_isotropic_noise_kernel(
     fig.show()
     input()
 
-
-def plot_isotropic_lorentzian_noise(
-    system: PeriodicSystem,
-    config: SimulationConfig,
-) -> None:
-    # 1d lorentzian---------------------------
-    hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
-    basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
-    kernel_lorentz = get_lorentzian_isotropic_noise_kernel(basis_x)
-    data = kernel_lorentz["data"].reshape(kernel_lorentz["basis"].shape)
+def plot_isotropic_kernel(
+    kernel: IsotropicNoiseKernel[_B0],
+    *,
+    n: int = 1,)-> None:
+    operators = solve_linear_general_isotropic_noise(kernel, n=n)
+    kernel = get_diagonal_noise_kernel(operators)
+    kernel_isotropic = as_isotropic_kernel(kernel)
+    data = kernel_isotropic["data"]
     fig, ax, line = plot_data_1d(
         data,
         np.arange(data.size),
@@ -478,32 +392,8 @@ def plot_isotropic_lorentzian_noise(
         scale="linear",
         measure="imag",
     )
-    line.set_label("true noise, real")
-    line1.set_label("true noise, imag")
-    ax.set_title("noise kernel")
-    fig.show()
-
-    operators = solve_linear_lorentzian_isotropic_noise(system, config, n=10)
-    kernel = get_diagonal_noise_kernel(operators)
-    kernel_isotropic = as_isotropic_kernel(kernel)
-    data = kernel_isotropic["data"]
-    fig, _, line2 = plot_data_1d(
-        data,
-        np.arange(data.size),
-        ax=ax,
-        scale="linear",
-        measure="real",
-    )
-    fig, _, line3 = plot_data_1d(
-        data,
-        np.arange(data.size),
-        ax=ax,
-        scale="linear",
-        measure="imag",
-    )
-    line2.set_label("fitted noise, real")
-    line3.set_label("fitted noise, imag")
+    line.set_label("fitted noise, real")
+    line1.set_label("fitted noise, imag")
     ax.legend()
-
     fig.show()
     input()
