@@ -54,7 +54,6 @@ from surface_potential_analysis.state_vector.state_vector_list import (
     state_vector_list_into_iter,
 )
 from surface_potential_analysis.util.plot import (
-    plot_data_1d,
     plot_data_1d_x,
 )
 
@@ -69,6 +68,8 @@ from reduced_state_caldeira_leggett.system import (
     get_noise_kernel,
     get_noise_operators,
     get_noise_operators_taylor_expansion,
+    get_potential_1d,
+    get_potential_2d,
 )
 
 
@@ -77,7 +78,7 @@ def plot_system_eigenstates(
     config: SimulationConfig,
 ) -> None:
     """Plot the potential against position."""
-    potential = get_extended_interpolated_potential(
+    potential = get_potential_1d(
         system,
         config.shape,
         config.resolution,
@@ -103,7 +104,7 @@ def plot_basis_states(
     config: SimulationConfig,
 ) -> None:
     """Plot the potential against position."""
-    potential = get_extended_interpolated_potential(
+    potential = get_potential_1d(
         system,
         config.shape,
         config.resolution,
@@ -195,7 +196,7 @@ def plot_state_against_t(
     step: int,
     dt_ratio: float = 500,
 ) -> None:
-    potential = get_extended_interpolated_potential(
+    potential = get_potential_1d(
         system,
         config.shape,
         config.resolution,
@@ -265,7 +266,7 @@ def plot_2d_111_potential(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
-    potential = get_2d_111_potential(system, config.shape, config.resolution)
+    potential = get_potential_2d(system, config.shape, config.resolution)
     fig, _, _ = plot_potential_2d_x(potential)
     fig.show()
     input()
@@ -355,15 +356,16 @@ def plot_isotropic_kernel(kernel: IsotropicNoiseKernel[_B0], *, n: int = 1) -> N
     kernel = get_diagonal_noise_kernel(operators)
     kernel_isotropic = as_isotropic_kernel(kernel)
     data = kernel_isotropic["data"]
-    fig, ax, line = plot_data_1d(
+    basis = kernel_isotropic["basis"]
+    fig, ax, line = plot_data_1d_x(
+        basis,
         data,
-        np.arange(data.size),
         scale="linear",
         measure="real",
     )
-    fig, _, line1 = plot_data_1d(
+    fig, _, line1 = plot_data_1d_x(
+        basis,
         data,
-        np.arange(data.size),
         ax=ax,
         scale="linear",
         measure="imag",
