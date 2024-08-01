@@ -1,4 +1,5 @@
 from reduced_state_caldeira_leggett.plot import (
+    plot_compare_error_1d_gaussian,
     plot_gaussian_noise_kernel,
 )
 from reduced_state_caldeira_leggett.system import (
@@ -16,4 +17,5 @@ if __name__ == "__main__":
         temperature=150,
     )
 
-    plot_gaussian_noise_kernel(system, config)
+    plot_gaussian_noise_kernel(system, config, fit_method="poly fit", n=5)
+    plot_compare_error_1d_gaussian(system, config, n=5)

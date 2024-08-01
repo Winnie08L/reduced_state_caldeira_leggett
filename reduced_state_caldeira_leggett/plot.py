@@ -1,15 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 import numpy as np
 from matplotlib import pyplot as plt
-from surface_potential_analysis.basis.stacked_basis import TupleBasisWithLengthLike
+from surface_potential_analysis.basis.basis_like import BasisLike
+from surface_potential_analysis.basis.stacked_basis import (
+    TupleBasisLike,
+    TupleBasisWithLengthLike,
+)
 from surface_potential_analysis.kernel.gaussian import (
     get_effective_gaussian_parameters,
     get_gaussian_isotropic_noise_kernel,
+    get_gaussian_operators_explicit_taylor,
 )
 from surface_potential_analysis.kernel.kernel import (
+    DiagonalNoiseOperatorList,
     IsotropicNoiseKernel,
     as_diagonal_kernel,
     as_isotropic_kernel,
@@ -70,7 +76,14 @@ from reduced_state_caldeira_leggett.system import (
     get_noise_operators_taylor_expansion,
     get_potential_1d,
     get_potential_2d,
+    new_noise_operators,
 )
+
+if TYPE_CHECKING:
+    from surface_potential_analysis.basis.basis import (
+        FundamentalBasis,
+        FundamentalPositionBasis,
+    )
 
 
 def plot_system_eigenstates(
@@ -289,9 +302,15 @@ def plot_new_noise_operators(
     input()
 
 
+fit_method = Literal["explicit", "poly fit", "fft"]
+
+
 def plot_gaussian_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
+    *,
+    n: int = 1,
+    fit_method: fit_method = "explicit",
 ) -> None:
     """Plot 1d general isotropic noise kernel, comparing the true one and the fitted one,
     gaussian noise is used here for testing.
@@ -322,11 +341,16 @@ def plot_gaussian_noise_kernel(
     )
     line.set_label("true noise, real")
     line1.set_label("true noise, imag")
-    ax.set_title("noise kernel")
+    ax.set_title("noise kernel, fit method = %s, n = %d" % (fit_method, n))
     fig.show()
 
-    # operators = get_gaussian_operators_explicit_taylor(a, lambda_, basis_x, n=5)
-    operators = get_noise_operators_taylor_expansion(kernel_real, n=10)
+    match fit_method:
+        case "explicit":
+            operators = get_gaussian_operators_explicit_taylor(a, lambda_, basis_x, n=n)
+        case "poly fit":
+            operators = get_noise_operators_taylor_expansion(kernel_real, n=n)
+        case "fft":
+            operators = new_noise_operators(system, config, n=n)
     kernel = get_diagonal_noise_kernel(operators)
     kernel_isotropic = as_isotropic_kernel(kernel)
     data = kernel_isotropic["data"]
@@ -373,5 +397,88 @@ def plot_isotropic_kernel(kernel: IsotropicNoiseKernel[_B0], *, n: int = 1) -> N
     line.set_label("fitted noise, real")
     line1.set_label("fitted noise, imag")
     ax.legend()
+    fig.show()
+    input()
+
+
+_B1 = TypeVar("_B1", bound=BasisLike[Any, Any])
+_B2 = TypeVar("_B2", bound=BasisLike[Any, Any])
+
+
+def get_noise_kernel_percentage_error(
+    fitted_op: DiagonalNoiseOperatorList[FundamentalBasis[int], _B1, _B2],
+    true_kernel: IsotropicNoiseKernel[
+        TupleBasisLike[*tuple[FundamentalPositionBasis[Any, Any], ...]],
+    ],
+) -> np.ndarray[Any, np.dtype[np.complex128]]:
+    true_data = true_kernel["data"].reshape(true_kernel["basis"].shape)
+    fitted_kernel = get_diagonal_noise_kernel(fitted_op)
+    fit = as_isotropic_kernel(fitted_kernel)
+    return (fit["data"] - true_data) / true_data
+
+
+def plot_compare_error_1d_gaussian(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    *,
+    n: int = 1,
+) -> None:
+    """Compare the errors between kernels obtained using different methods: general taylor expansion
+    using poly fit, explicit taylor expansion of the function, and the kernel built from its complete set of eigenstates.
+
+    Parameters
+    ----------
+    system: PeriodicSystem
+    config: SimulationConfig
+
+    Returns
+    -------
+    Plot showing the errors bewteen fitted noise kernel and true noise kernel.
+
+    """
+    hamiltonian = get_hamiltonian(system, config)
+    a, lambda_ = get_effective_gaussian_parameters(
+        hamiltonian["basis"][0],
+        system.eta,
+        config.temperature,
+        lambda_factor=2 * np.sqrt(2),
+    )
+    basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
+    true_noise = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
+
+    operators = get_noise_operators_taylor_expansion(true_noise, n=n)
+    poly_fit_data_error = get_noise_kernel_percentage_error(operators, true_noise)
+
+    operators = get_gaussian_operators_explicit_taylor(a, lambda_, basis_x, n=n)
+    explicit_fit_data_error = get_noise_kernel_percentage_error(operators, true_noise)
+
+    # operators = new_noise_operators(system, config, n=n)
+    # fft_fit_data_error = get_noise_kernel_percentage_error(operators, true_noise)
+
+    fig, ax, line = plot_data_1d_x(
+        true_noise["basis"],
+        poly_fit_data_error,
+        scale="linear",
+        measure="real",
+    )
+    fig, _, line1 = plot_data_1d_x(
+        true_noise["basis"],
+        explicit_fit_data_error,
+        ax=ax,
+        scale="linear",
+        measure="real",
+    )
+    # fig, _, line2 = plot_data_1d_x(
+    #     true_noise["basis"],
+    #     fft_fit_data_error,
+    #     ax = ax,
+    #     scale="linear",
+    #     measure="real",
+    # )
+    line.set_label("poly fit kernel error")
+    line1.set_label("explicit taylor error")
+    # line2.set_label("fft fit error")
+    ax.legend()
+    ax.set_title("noise kernel percentage error comparison")
     fig.show()
     input()
