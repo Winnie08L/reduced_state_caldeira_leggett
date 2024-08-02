@@ -20,7 +20,6 @@ from surface_potential_analysis.basis.stacked_basis import (
     TupleBasisLike,
     TupleBasisWithLengthLike,
 )
-from surface_potential_analysis.basis.util import BasisUtil
 from surface_potential_analysis.hamiltonian_builder.momentum_basis import (
     total_surface_hamiltonian,
 )
@@ -30,21 +29,22 @@ from surface_potential_analysis.kernel.conversion import (
 )
 from surface_potential_analysis.kernel.gaussian import (
     get_effective_gaussian_noise_kernel,
-    get_effective_gaussian_parameters,
-    get_gaussian_isotropic_noise_kernel,
     get_temperature_corrected_effective_gaussian_noise_operators,
 )
-from surface_potential_analysis.kernel.kernel import get_coefficient_matrix_taylor
+from surface_potential_analysis.kernel.solve import (
+    get_noise_operators_eigenvalue,
+    get_noise_operators_real_isotropic_stacked,
+    get_noise_operators_taylor_expansion,
+)
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.potential.conversion import convert_potential_to_basis
 from surface_potential_analysis.stacked_basis.build import (
-    fundamental_stacked_basis_from_shape,
+    fundamental_transformed_stacked_basis_from_shape,
 )
 from surface_potential_analysis.stacked_basis.conversion import (
     stacked_basis_as_fundamental_momentum_basis,
     stacked_basis_as_fundamental_position_basis,
 )
-from surface_potential_analysis.util.interpolation import pad_ft_points
 from surface_potential_analysis.wavepacket.get_eigenstate import (
     get_full_bloch_hamiltonian,
     get_full_wannier_hamiltonian,
@@ -104,6 +104,8 @@ class SimulationConfig:
     n_bands: int
     type: Literal["bloch", "wannier"]
     temperature: float
+    FitMethod: Literal["poly fit", "eigenvalue", "fft"]
+    n_polynomial: int
 
 
 HYDROGEN_NICKEL_SYSTEM = PeriodicSystem(
@@ -331,8 +333,8 @@ def get_wavepacket(
 
     return generate_wavepacket(
         hamiltonian_generator,
-        save_bands=EvenlySpacedBasis(config.n_bands, 1, 0),
-        list_basis=fundamental_stacked_basis_from_shape(config.shape),
+        band_basis=EvenlySpacedBasis(config.n_bands, 1, 0),
+        list_basis=fundamental_transformed_stacked_basis_from_shape(config.shape),
     )
 
 
@@ -388,7 +390,7 @@ def get_noise_kernel(
     )
 
 
-def get_noise_operators(
+def get_noise_operators_fft(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> SingleBasisNoiseOperatorList[
@@ -406,6 +408,28 @@ def get_noise_operators(
     return convert_noise_operator_list_to_basis(operators, actual_hamiltonian["basis"])
 
 
+_TB0 = TypeVar("_TB0", bound=TupleBasisLike[*tuple[Any, ...]])
+
+
+def get_noise_operators(
+    kernel: IsotropicNoiseKernel[_TB0],
+    config: SimulationConfig,
+) -> SingleBasisDiagonalNoiseOperatorList[
+    TupleBasisLike[*tuple[FundamentalBasis[int], ...]],
+    _TB0,
+]:
+    match config.FitMethod:
+        case "poly fit":
+            operators = get_noise_operators_taylor_expansion(
+                kernel, n=config.n_polynomial
+            )
+        case "fft":
+            operators = get_noise_operators_real_isotropic_stacked(kernel)
+        case "eigenvalue":
+            operators = get_noise_operators_eigenvalue(kernel)
+    return operators
+
+
 def get_initial_state(
     system: PeriodicSystem,
     config: SimulationConfig,
@@ -416,126 +440,3 @@ def get_initial_state(
     data = np.zeros(basis.n, dtype=np.complex128)
     data[0] = 1
     return {"basis": basis, "data": data}
-
-
-def new_noise_operators(
-    system: PeriodicSystem,
-    config: SimulationConfig,
-    *,
-    n: int = 1,
-    lambda_factor: float = 2 * np.sqrt(2),
-) -> SingleBasisDiagonalNoiseOperatorList[
-    FundamentalBasis[int],
-    TupleBasisWithLengthLike[FundamentalPositionBasis[Any, Literal[1]]],
-]:
-    """To fit the noise correlation using trig functions generated from hamiltonian,
-    expressed using a truncated trig series include only the first n sine/cos terms,
-    found using fft method.
-
-    Return in the order of [const term, first n sine terms, first n cos terms]
-    and also their corresponding coefficients.
-
-    """
-    hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
-    a, lambda_ = get_effective_gaussian_parameters(
-        hamiltonian["basis"][0],
-        system.eta,
-        config.temperature,
-        lambda_factor=lambda_factor,
-    )
-    basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
-    k = 2 * np.pi / basis_x.shape[0]
-    nx_points = BasisUtil(basis_x).fundamental_stacked_nx_points[0]
-
-    sines = [
-        np.sin(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
-    ]
-    coses = [
-        np.cos(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
-    ]
-    data = np.append(np.ones_like(nx_points).astype(np.complex128), [sines, coses])
-    # get coeff
-    correlation = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
-    peak = np.concatenate(
-        (correlation["data"][(n + 1) :], correlation["data"][: (n + 1)]),
-    )
-    ft_peak = np.fft.rfft(peak, norm="forward")
-    zero_freq = np.array([ft_peak[0]])
-    coeff = np.concatenate(
-        [
-            zero_freq,
-            (ft_peak[1:]) / 2,
-            (-ft_peak[1:][::-1]) / 2,
-        ],
-    )
-
-    return {
-        "basis": TupleBasis(FundamentalBasis(2 * n + 1), TupleBasis(basis_x, basis_x)),
-        "data": data.astype(np.complex128),
-        "eigenvalue": coeff.astype(np.complex128),
-    }
-
-
-_B0 = TypeVar("_B0", bound=TupleBasisWithLengthLike[Any, Any])
-
-
-def get_noise_operators_taylor_expansion(
-    kernel: IsotropicNoiseKernel[_B0],
-    *,
-    n: int = 1,
-) -> SingleBasisDiagonalNoiseOperatorList[
-    FundamentalBasis[int],
-    TupleBasisWithLengthLike[FundamentalPositionBasis[Any, Literal[1]]],
-]:
-    """Calculate the noise operators for a general isotropic noise kernel, using
-    an explicit Taylor expansion.
-
-    Parameters
-    ----------
-    kernel: IsotropicNoiseKernel[TupleBasisWithLengthLike[Any, Any]]
-    n: int, by default 1
-
-    Returns
-    -------
-    The noise operators formed using the2n+1 lowest fourier terms, and the corresponding coefficients.
-
-    """
-    basis_x = stacked_basis_as_fundamental_position_basis(kernel["basis"])
-    delta_x = np.linalg.norm(BasisUtil(basis_x).delta_x_stacked[0])
-    k = 2 * np.pi / basis_x.shape[0]
-    delta_k = 2 * np.pi / delta_x
-    nx_points = BasisUtil(basis_x).fundamental_stacked_nx_points[0]
-    displacements = (
-        (BasisUtil(basis_x).fundamental_stacked_nk_points[0])
-        * (BasisUtil(basis_x).dx_stacked[0])
-    )
-    kernel_data = kernel["data"]
-    # weight is chosen such that the 2n+1 points around the origin are selected for fitting
-    weight = pad_ft_points(np.ones(2 * n + 1), (basis_x.n,), (0,))
-    noise_polynomial = np.polynomial.Polynomial.fit(
-        x=displacements,
-        y=kernel_data,
-        deg=np.arange(0, 2 * n + 1, 2),
-        w=weight,
-        domain=[-np.min(displacements), np.min(displacements)],
-    )
-    noise_coefficients = noise_polynomial.convert().coef[::2]
-    operator_coefficients = get_coefficient_matrix_taylor(
-        true_noise_coeff=noise_coefficients,
-        delta_k=delta_k,
-        n=n,
-    )
-
-    sines = [
-        np.sin(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
-    ]
-    coses = [
-        np.cos(i * k * nx_points).astype(np.complex128) for i in np.arange(1, n + 1)
-    ]
-    data = np.append(np.ones_like(nx_points).astype(np.complex128), [sines, coses])
-
-    return {
-        "basis": TupleBasis(FundamentalBasis(2 * n + 1), TupleBasis(basis_x, basis_x)),
-        "data": data.astype(np.complex128),
-        "eigenvalue": operator_coefficients.astype(np.complex128),
-    }

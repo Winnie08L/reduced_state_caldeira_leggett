@@ -1,6 +1,6 @@
 from reduced_state_caldeira_leggett.plot import (
-    plot_compare_error_1d_gaussian,
-    plot_gaussian_noise_kernel,
+    plot_isotropic_kernel_percentage_error,
+    plot_noise_kernel,
 )
 from reduced_state_caldeira_leggett.system import (
     HYDROGEN_NICKEL_SYSTEM,
@@ -15,7 +15,9 @@ if __name__ == "__main__":
         n_bands=3,
         type="bloch",
         temperature=150,
+        FitMethod="poly fit",
+        n_polynomial=0,
     )
 
-    plot_gaussian_noise_kernel(system, config, fit_method="poly fit", n=5)
-    plot_compare_error_1d_gaussian(system, config, n=5)
+    plot_noise_kernel(system, config)
+    plot_isotropic_kernel_percentage_error(system, config)
