@@ -9,8 +9,8 @@ from reduced_state_caldeira_leggett.system import (
 if __name__ == "__main__":
     system = HYDROGEN_NICKEL_SYSTEM
     config = SimulationConfig(
-        shape=(1,),
-        resolution=(31,),
+        shape=(1, 1),
+        resolution=(5, 7),
         n_bands=3,
         type="bloch",
         temperature=150,
@@ -18,6 +18,7 @@ if __name__ == "__main__":
 
     # plot_new_noise_operators(system, config, n=1)
     plot_isotropic_noise_kernel(system, config)
+    plot_isotropic_noise_kernel(system, config, axes=(1,))
     # plot_kernel(system, config)
     # hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
     # a, lambda_ = get_effective_gaussian_parameters(

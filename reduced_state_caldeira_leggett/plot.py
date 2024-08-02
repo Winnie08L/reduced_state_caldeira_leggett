@@ -19,6 +19,7 @@ from surface_potential_analysis.kernel.kernel import (
 )
 from surface_potential_analysis.kernel.plot import (
     plot_diagonal_kernel,
+    plot_isotropic_noise_kernel_1d_x,
     plot_kernel_truncation_error,
 )
 from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
@@ -56,7 +57,6 @@ from surface_potential_analysis.state_vector.state_vector_list import (
 from surface_potential_analysis.util.plot import (
     Scale,
     build_animation,
-    plot_data_1d_x,
 )
 from surface_potential_analysis.util.util import (
     Measure,
@@ -411,8 +411,8 @@ def plot_new_noise_operators(
 def plot_isotropic_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
+    axes: tuple[int] = (0,),
 ) -> None:
-    # 1d
     hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
     a, lambda_ = get_effective_gaussian_parameters(
         hamiltonian["basis"][0],
@@ -424,42 +424,48 @@ def plot_isotropic_noise_kernel(
     basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
     kernel_real = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
     kernel_real["data"].reshape(kernel_real["basis"].shape)
-    fig, ax, line = plot_data_1d_x(
-        kernel_real["basis"],
-        kernel_real["data"],
+    fig, ax, line = plot_isotropic_noise_kernel_1d_x(
+        kernel_real,
+        axes=axes,
         scale="linear",
         measure="real",
     )
-    fig, _, line1 = plot_data_1d_x(
-        kernel_real["basis"],
-        kernel_real["data"],
-        ax=ax,
+    fig, _, line1 = plot_isotropic_noise_kernel_1d_x(
+        kernel_real,
+        axes=axes,
         scale="linear",
         measure="imag",
+        ax=ax,
     )
     line.set_label("true noise, real")
     line1.set_label("true noise, imag")
     ax.set_title("noise kernel")
     fig.show()
 
-    operators = new_noise_operators(system, config, lambda_factor=2 * np.sqrt(2))
-    kernel = get_diagonal_noise_kernel(operators)
-    kernel_isotropic = as_isotropic_kernel(kernel)
-    kernel_isotropic["data"]
-    fig, _, line2 = plot_data_1d_x(
-        kernel_isotropic["basis"],
-        kernel_isotropic["data"],
+    operators = new_noise_operators(
+        system,
+        config,
+        shape=(1, 1),
+        lambda_factor=2 * np.sqrt(2),
+    )
+    kernel_fitted = as_isotropic_kernel(get_diagonal_noise_kernel(operators))
+
+    fig, _, line2 = plot_isotropic_noise_kernel_1d_x(
+        kernel_fitted,
+        axes=axes,
         ax=ax,
         scale="linear",
         measure="real",
     )
-    fig, _, line3 = plot_data_1d_x(
-        kernel_isotropic["basis"],
-        kernel_isotropic["data"],
+    fig, _, line3 = plot_isotropic_noise_kernel_1d_x(
+        kernel_fitted,
+        axes=axes,
         ax=ax,
         scale="linear",
         measure="imag",
     )
+    line2.set_linestyle("--")
+    line2.set_color("C3")
     line2.set_label("fitted noise, real")
     line3.set_label("fitted noise, imag")
     ax.legend()

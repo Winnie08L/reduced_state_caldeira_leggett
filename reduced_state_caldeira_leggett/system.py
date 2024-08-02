@@ -35,7 +35,7 @@ from surface_potential_analysis.kernel.gaussian import (
     get_temperature_corrected_effective_gaussian_noise_operators,
 )
 from surface_potential_analysis.kernel.kernel import (
-    get_noise_operators_real_isotropic,
+    get_noise_operators_real_isotropic_stacked,
 )
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.potential.conversion import convert_potential_to_basis
@@ -250,7 +250,9 @@ def _get_full_hamiltonian(
 ) -> SingleBasisOperator[
     TupleBasisWithLengthLike[FundamentalPositionBasis[int, Literal[1]]],
 ]:
-    bloch_fraction = np.array([0]) if bloch_fraction is None else bloch_fraction
+    bloch_fraction = (
+        np.array([0 for _ in shape]) if bloch_fraction is None else bloch_fraction
+    )
 
     match len(shape):
         case 1:
@@ -380,7 +382,7 @@ def new_noise_operators(
     system: PeriodicSystem,
     config: SimulationConfig,
     *,
-    n: int | None = None,
+    shape: tuple[int, ...] | None = None,
     lambda_factor: float = 2 * np.sqrt(2),
 ) -> SingleBasisDiagonalNoiseOperatorList[
     FundamentalBasis[int],
@@ -406,4 +408,4 @@ def new_noise_operators(
     basis_x = stacked_basis_as_fundamental_position_basis(hamiltonian["basis"][0])
     correlation = get_gaussian_isotropic_noise_kernel(basis_x, a, lambda_)
 
-    return get_noise_operators_real_isotropic(correlation, n=n)
+    return get_noise_operators_real_isotropic_stacked(correlation, shape=shape)
