@@ -5,11 +5,21 @@ from typing import Any, TypeVar
 import numpy as np
 from matplotlib import pyplot as plt
 from surface_potential_analysis.basis.stacked_basis import (
+    TupleBasis,
     TupleBasisWithLengthLike,
+)
+from surface_potential_analysis.kernel.conversion import (
+    convert_diagonal_noise_operator_list_to_basis,
+    convert_noise_operator_list_to_basis,
+)
+from surface_potential_analysis.kernel.gaussian import (
+    get_effective_gaussian_parameters,
+    get_gaussian_isotropic_noise_kernel,
 )
 from surface_potential_analysis.kernel.kernel import (
     IsotropicNoiseKernel,
     as_diagonal_kernel,
+    as_diagonal_noise_operators,
     as_isotropic_kernel,
     as_noise_kernel,
     get_diagonal_noise_kernel,
@@ -39,6 +49,9 @@ from surface_potential_analysis.potential.plot import (
     plot_potential_1d_x,
     plot_potential_2d_x,
 )
+from surface_potential_analysis.stacked_basis.conversion import (
+    stacked_basis_as_fundamental_position_basis,
+)
 from surface_potential_analysis.state_vector.eigenstate_calculation import (
     calculate_eigenvectors_hermitian,
 )
@@ -62,9 +75,9 @@ from reduced_state_caldeira_leggett.system import (
     get_hamiltonian,
     get_noise_kernel,
     get_noise_operators,
-    get_noise_operators_fft,
     get_potential_1d,
     get_potential_2d,
+    get_temperature_corrected_noise_operators,
 )
 
 
@@ -152,7 +165,7 @@ def plot_kernel(
     fig, _ = plot_kernel_truncation_error(kernel)
     fig.show()
 
-    corrected_operators = get_noise_operators_fft(system, config)
+    corrected_operators = get_temperature_corrected_noise_operators(system, config)
     kernel_full = get_noise_kernel_generic(corrected_operators)
 
     fig, _, _ = plot_kernel_generic(kernel_full)
@@ -169,7 +182,7 @@ def plot_lindblad_operator(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
-    operators = get_noise_operators_fft(system, config)
+    operators = get_noise_operators(system, config)
 
     args = np.argsort(np.abs(operators["eigenvalue"]))[::-1]
 
@@ -250,7 +263,7 @@ def plot_noise_operator(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> None:
-    operator = select_operator(get_noise_operators_fft(system, config), 0)
+    operator = select_operator(get_noise_operators(system, config), 0)
     fig, _ax, _ = plot_operator_along_diagonal(operator)
 
     fig.show()
@@ -292,22 +305,48 @@ def plot_noise_kernel(
 
     True kernel and the fitted kernel compared.
     """
-    kernel_real = get_noise_kernel(system, config)
-    kernel_real["data"].reshape(kernel_real["basis"].shape)
-    fig, ax, line = plot_isotropic_noise_kernel_1d_x(kernel_real)
-    line.set_label("true noise, real")
-    fig, _, line1 = plot_isotropic_noise_kernel_1d_x(kernel_real, measure="imag")
-    line1.set_label("true noise, imag")
+    hamiltonian = get_hamiltonian(system, config)
+    basis = hamiltonian["basis"][0]
+    basis_x = stacked_basis_as_fundamental_position_basis(basis)
+    a, lambda_ = get_effective_gaussian_parameters(
+        hamiltonian["basis"][0],
+        system.eta,
+        config.temperature,
+        lambda_factor=2 * np.sqrt(2),
+    )
+    kernel_real = get_gaussian_isotropic_noise_kernel(
+        basis,
+        a,
+        lambda_,
+    )
+    fig, ax, line1 = plot_isotropic_noise_kernel_1d_x(kernel_real)
+    line1.set_label("true noise, no temperature correction")
+    fig.show()
 
-    operators = get_noise_operators(kernel_real, config)
-    kernel_diag = get_diagonal_noise_kernel(operators)
-    kernel_isotropic = as_isotropic_kernel(kernel_diag)
-    fig, _, line2 = plot_isotropic_noise_kernel_1d_x(kernel_isotropic)
-    line2.set_label("fitted noise, real")
-    fig, _, line3 = plot_isotropic_noise_kernel_1d_x(kernel_isotropic, measure="imag")
-    line3.set_label("fitted noise, imag")
+    fit_op_ = get_noise_operators(system, config)
+    converted_ = convert_diagonal_noise_operator_list_to_basis(
+        fit_op_,
+        TupleBasis(basis_x, basis_x),
+    )
+    kernel_isotropic_ = as_isotropic_kernel(
+        get_diagonal_noise_kernel(as_diagonal_noise_operators(converted_)),
+    )
+    fig, _, line2 = plot_isotropic_noise_kernel_1d_x(kernel_isotropic_, ax=ax)
+    line2.set_label("fitted noise, no temperature correction")
+
+    fit_op = get_temperature_corrected_noise_operators(system, config)
+    converted = convert_noise_operator_list_to_basis(
+        fit_op,
+        TupleBasis(basis_x, basis_x),
+    )
+    kernel_isotropic = as_isotropic_kernel(
+        get_diagonal_noise_kernel(as_diagonal_noise_operators(converted)),
+    )
+    fig, _, line3 = plot_isotropic_noise_kernel_1d_x(kernel_isotropic, ax=ax)
+    line3.set_label("fitted noise, with temperature correction")
+
     ax.set_title(
-        f"noise kernel, fit method = {config.FitMethod}, n = {config.n_polynomial}",
+        f"noise kernel, fit method = {config.FitMethod}, n = {config.n_polynomial}, temperature = {config.temperature}",
     )
     ax.legend()
     fig.show()

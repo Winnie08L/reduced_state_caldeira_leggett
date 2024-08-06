@@ -23,16 +23,22 @@ from surface_potential_analysis.basis.stacked_basis import (
 from surface_potential_analysis.hamiltonian_builder.momentum_basis import (
     total_surface_hamiltonian,
 )
-from surface_potential_analysis.kernel.conversion import (
-    convert_diagonal_kernel_to_basis,
-    convert_noise_operator_list_to_basis,
+from surface_potential_analysis.kernel.build import (
+    get_temperature_corrected_diagonal_noise_operators,
 )
 from surface_potential_analysis.kernel.gaussian import (
-    get_effective_gaussian_noise_kernel,
-    get_temperature_corrected_effective_gaussian_noise_operators,
+    get_effective_gaussian_parameters,
+    get_gaussian_isotropic_noise_kernel,
+)
+from surface_potential_analysis.kernel.kernel import (
+    as_diagonal_kernel_from_isotropic,
+    get_noise_operators_diagonal,
+    truncate_diagonal_noise_operators,
+)
+from surface_potential_analysis.kernel.kernel import (
+    get_noise_kernel as get_noise_kernel_generic,
 )
 from surface_potential_analysis.kernel.solve import (
-    get_noise_operators_eigenvalue,
     get_noise_operators_real_isotropic_stacked,
     get_noise_operators_taylor_expansion,
 )
@@ -64,7 +70,6 @@ if TYPE_CHECKING:
         ExplicitStackedBasisWithLength,
     )
     from surface_potential_analysis.kernel.kernel import (
-        IsotropicNoiseKernel,
         SingleBasisDiagonalNoiseOperatorList,
         SingleBasisNoiseKernel,
         SingleBasisNoiseOperatorList,
@@ -378,56 +383,65 @@ def get_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
 ) -> SingleBasisNoiseKernel[ExplicitStackedBasisWithLength[Any, Any]]:
-    hamiltonian = get_hamiltonian(system, config)
+    operators = get_noise_operators(system, config)
 
-    return convert_diagonal_kernel_to_basis(
-        get_effective_gaussian_noise_kernel(
-            hamiltonian["basis"][0],
-            system.eta,
-            config.temperature,
-        ),
-        hamiltonian["basis"],
-    )
-
-
-def get_noise_operators_fft(
-    system: PeriodicSystem,
-    config: SimulationConfig,
-) -> SingleBasisNoiseOperatorList[
-    FundamentalBasis[int],
-    ExplicitStackedBasisWithLength[Any, Any],
-]:
-    hamiltonian = _get_full_hamiltonian(system, config.shape, config.resolution)
-    operators = get_temperature_corrected_effective_gaussian_noise_operators(
-        hamiltonian,
-        system.eta,
-        config.temperature,
-    )
-
-    actual_hamiltonian = get_hamiltonian(system, config)
-    return convert_noise_operator_list_to_basis(operators, actual_hamiltonian["basis"])
-
-
-_TB0 = TypeVar("_TB0", bound=TupleBasisLike[*tuple[Any, ...]])
+    return get_noise_kernel_generic(operators)
 
 
 def get_noise_operators(
-    kernel: IsotropicNoiseKernel[_TB0],
+    system: PeriodicSystem,
     config: SimulationConfig,
 ) -> SingleBasisDiagonalNoiseOperatorList[
-    TupleBasisLike[*tuple[FundamentalBasis[int], ...]],
-    _TB0,
+    TupleBasis[*tuple[FundamentalBasis[int], ...]],
+    TupleBasisWithLengthLike[*tuple[FundamentalPositionBasis[Any, Any], ...]],
 ]:
+    hamiltonian = get_hamiltonian(system, config)
+    basis = hamiltonian["basis"][0]
+    a, lambda_ = get_effective_gaussian_parameters(
+        basis,
+        system.eta,
+        config.temperature,
+    )
+    kernel = get_gaussian_isotropic_noise_kernel(basis, a, lambda_)
     match config.FitMethod:
         case "poly fit":
             operators = get_noise_operators_taylor_expansion(
-                kernel, n=config.n_polynomial
+                kernel,
+                n=config.n_polynomial,
             )
         case "fft":
-            operators = get_noise_operators_real_isotropic_stacked(kernel)
+            operators = get_noise_operators_real_isotropic_stacked(
+                kernel,
+            )
+            operators = truncate_diagonal_noise_operators(
+                operators,
+                range(config.n_polynomial),
+            )
         case "eigenvalue":
-            operators = get_noise_operators_eigenvalue(kernel)
+            operators = get_noise_operators_diagonal(
+                as_diagonal_kernel_from_isotropic(kernel),
+            )
+            operators = truncate_diagonal_noise_operators(
+                operators,
+                range(config.n_polynomial),
+            )
     return operators
+
+
+def get_temperature_corrected_noise_operators(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> SingleBasisNoiseOperatorList[
+    TupleBasis[*tuple[FundamentalBasis[int], ...]],
+    TupleBasisWithLengthLike[*tuple[FundamentalPositionBasis[Any, Any], ...]],
+]:
+    operators = get_noise_operators(system, config)
+    hamiltonian = get_hamiltonian(system, config)
+    return get_temperature_corrected_diagonal_noise_operators(
+        hamiltonian,
+        operators,
+        config.temperature,
+    )
 
 
 def get_initial_state(
