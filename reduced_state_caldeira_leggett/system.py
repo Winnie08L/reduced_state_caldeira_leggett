@@ -31,11 +31,9 @@ from surface_potential_analysis.kernel.gaussian import (
     get_gaussian_isotropic_noise_kernel,
 )
 from surface_potential_analysis.kernel.kernel import (
+    IsotropicNoiseKernel,
     as_diagonal_kernel_from_isotropic,
     truncate_diagonal_noise_operators,
-)
-from surface_potential_analysis.kernel.kernel import (
-    get_noise_kernel as get_noise_kernel_generic,
 )
 from surface_potential_analysis.kernel.solve import (
     get_noise_operators_diagonal_eigenvalue,
@@ -71,7 +69,6 @@ if TYPE_CHECKING:
     )
     from surface_potential_analysis.kernel.kernel import (
         SingleBasisDiagonalNoiseOperatorList,
-        SingleBasisNoiseKernel,
         SingleBasisNoiseOperatorList,
     )
     from surface_potential_analysis.operator.operator import SingleBasisOperator
@@ -382,10 +379,20 @@ def get_hamiltonian(
 def get_noise_kernel(
     system: PeriodicSystem,
     config: SimulationConfig,
-) -> SingleBasisNoiseKernel[ExplicitStackedBasisWithLength[Any, Any]]:
-    operators = get_noise_operators(system, config)
+) -> IsotropicNoiseKernel[
+    TupleBasisWithLengthLike[*tuple[FundamentalPositionBasis[Any, Any], ...]]
+]:
+    # operators = get_noise_operators(system, config)
+    hamiltonian = get_hamiltonian(system, config)
+    basis = hamiltonian["basis"][0]
+    a, lambda_ = get_effective_gaussian_parameters(
+        basis,
+        system.eta,
+        config.temperature,
+    )
+    return get_gaussian_isotropic_noise_kernel(basis, a, lambda_)
 
-    return get_noise_kernel_generic(operators)
+    # return get_noise_kernel_generic(operators)
 
 
 def get_noise_operators(

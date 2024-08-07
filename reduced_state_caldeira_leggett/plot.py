@@ -358,12 +358,26 @@ def plot_noise_kernel(
 def plot_isotropic_kernel_percentage_error(
     system: PeriodicSystem,
     config: SimulationConfig,
+    *,
+    to_compare: bool = False,
+    config1: SimulationConfig,
 ) -> None:
     true_kernel = get_noise_kernel(system, config)
-    operators = get_noise_operators(true_kernel, config)
+    operators = get_noise_operators(system, config)
     fitted_kernel = get_diagonal_noise_kernel(operators)
     fitted_kernel = as_isotropic_kernel(fitted_kernel)
     fig, ax, line = plot_isotropic_kernel_error(true_kernel, fitted_kernel)
+
+    # to compare the errors between different methods directly
+    if to_compare:
+        operators1 = get_noise_operators(system, config1)
+        fitted_kernel1 = get_diagonal_noise_kernel(operators1)
+        fitted_kernel1 = as_isotropic_kernel(fitted_kernel1)
+        fig, _, line1 = plot_isotropic_kernel_error(true_kernel, fitted_kernel1, ax=ax)
+        line1.set_label(
+            f"fit method = {config1.FitMethod}, power of polynomial terms included = {config1.n_polynomial}",
+        )
+
     ax.set_title("comparison of noise kernel percentage error")
     ax.set_ylabel("Percentage Error, %")
     line.set_label(
