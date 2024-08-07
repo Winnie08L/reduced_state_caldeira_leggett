@@ -15,7 +15,7 @@ if __name__ == "__main__":
         type="bloch",
         temperature=150,
         FitMethod="poly fit",
-        n_polynomial=5,
+        n_polynomial=1,
     )
 
     plot_noise_kernel(system, config)

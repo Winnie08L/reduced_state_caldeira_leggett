@@ -34,7 +34,9 @@ from surface_potential_analysis.kernel.plot import (
     plot_kernel_truncation_error,
 )
 from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
-from surface_potential_analysis.kernel.solve import get_noise_operators_taylor_expansion
+from surface_potential_analysis.kernel.solve import (
+    get_noise_operators_stacked_taylor_expansion,
+)
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.operator.operator_list import (
     select_operator,
@@ -289,7 +291,7 @@ def plot_new_noise_operators(
     n: int = 1,
 ) -> None:
     """Plot the noise operators generated."""
-    operators = get_noise_operators_taylor_expansion(kernel, n=n)
+    operators = get_noise_operators_stacked_taylor_expansion(kernel, n=n)
     op = select_operator_diagonal(operators, idx=1)
     fig1, ax1, _ = plot_operator_along_diagonal(as_operator(op), measure="real")
     ax1.set_title("fitted noise operator")
@@ -363,6 +365,7 @@ def plot_isotropic_kernel_percentage_error(
     fitted_kernel = as_isotropic_kernel(fitted_kernel)
     fig, ax, line = plot_isotropic_kernel_error(true_kernel, fitted_kernel)
     ax.set_title("comparison of noise kernel percentage error")
+    ax.set_ylabel("Percentage Error, %")
     line.set_label(
         f"fit method = {config.FitMethod}, power of polynomial terms included = {config.n_polynomial}",
     )
