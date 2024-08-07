@@ -368,6 +368,26 @@ def plot_isotropic_kernel_percentage_error(
     fitted_kernel = as_isotropic_kernel(fitted_kernel)
     fig, ax, line = plot_isotropic_kernel_error(true_kernel, fitted_kernel)
 
+    # try test temperature correction------------
+    # fit_op_no_T = get_noise_operators(system, config)
+    # kernel_isotropic_no_T = as_isotropic_kernel(
+    #     get_diagonal_noise_kernel(fit_op_no_T),
+    # )
+    # fit_op_T = get_temperature_corrected_noise_operators(system, config)
+    # kernel_isotropic_T = as_isotropic_kernel(
+    #     get_diagonal_noise_kernel(as_diagonal_noise_operators(fit_op_T)),
+    # )
+    # _see_T = as_diagonal_noise_operators(fit_op_T)
+    # fig, ax, line = plot_isotropic_kernel_error(
+    #     kernel_isotropic_no_T,
+    #     kernel_isotropic_T,
+    # )
+    # ax.set_title("percentage error between kernel with and without temperature")
+    # line.set_label(
+    #     f"fit method = {config.FitMethod}, power of polynomial terms included = {config.n_polynomial}",
+    # )
+    # ------------------------------
+
     # to compare the errors between different methods directly
     if to_compare:
         operators1 = get_noise_operators(system, config1)

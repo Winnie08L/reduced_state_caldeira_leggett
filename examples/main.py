@@ -1,5 +1,5 @@
 from reduced_state_caldeira_leggett.plot import (
-    plot_isotropic_kernel_percentage_error,
+    plot_noise_kernel,
 )
 from reduced_state_caldeira_leggett.system import (
     HYDROGEN_NICKEL_SYSTEM,
@@ -15,7 +15,7 @@ if __name__ == "__main__":
         type="bloch",
         temperature=150,
         FitMethod="poly fit",
-        n_polynomial=5,
+        n_polynomial=11,
     )
     config1 = SimulationConfig(
         shape=(3,),
@@ -27,7 +27,5 @@ if __name__ == "__main__":
         n_polynomial=5,
     )
 
-    # plot_noise_kernel(system, config)
-    plot_isotropic_kernel_percentage_error(
-        system, config, to_compare=True, config1=config1
-    )
+    plot_noise_kernel(system, config)
+    # plot_isotropic_kernel_percentage_error(system, config, config1=config1)
