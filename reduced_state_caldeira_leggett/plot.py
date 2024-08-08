@@ -18,24 +18,22 @@ from surface_potential_analysis.kernel.gaussian import (
 )
 from surface_potential_analysis.kernel.kernel import (
     IsotropicNoiseKernel,
-    as_diagonal_kernel,
-    as_diagonal_noise_operators,
-    as_isotropic_kernel,
-    as_noise_kernel,
-    get_diagonal_noise_kernel,
-)
-from surface_potential_analysis.kernel.kernel import (
-    get_noise_kernel as get_noise_kernel_generic,
+    as_diagonal_kernel_from_full,
+    as_diagonal_kernel_from_isotropic,
+    as_diagonal_noise_operators_from_full,
+    as_full_kernel_from_diagonal,
+    as_isotropic_kernel_from_diagonal,
+    get_diagonal_kernel_from_operators,
+    get_full_kernel_from_operators,
 )
 from surface_potential_analysis.kernel.plot import (
-    plot_diagonal_kernel,
-    plot_isotropic_kernel_error,
+    plot_diagonal_kernel_2d,
+    plot_diagonal_kernel_truncation_error,
     plot_isotropic_noise_kernel_1d_x,
-    plot_kernel_truncation_error,
+    plot_kernel_2d,
 )
-from surface_potential_analysis.kernel.plot import plot_kernel as plot_kernel_generic
 from surface_potential_analysis.kernel.solve import (
-    get_noise_operators_stacked_taylor_expansion,
+    get_noise_operators_real_isotropic_stacked_taylor_expansion,
 )
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.operator.operator_list import (
@@ -59,7 +57,7 @@ from surface_potential_analysis.state_vector.eigenstate_calculation import (
 )
 from surface_potential_analysis.state_vector.plot import (
     animate_state_over_list_1d_x,
-    plot_average_band_occupation,
+    plot_average_eigenstate_occupation,
     plot_state_1d_k,
     plot_state_1d_x,
 )
@@ -155,26 +153,26 @@ def plot_kernel(
     config: SimulationConfig,
 ) -> None:
     kernel = get_noise_kernel(system, config)
-    diagonal = as_diagonal_kernel(kernel)
+    diagonal = as_diagonal_kernel_from_isotropic(kernel)
 
-    fig, _, _ = plot_diagonal_kernel(diagonal)
+    fig, _, _ = plot_diagonal_kernel_2d(diagonal)
     fig.show()
     input()
 
-    fig, _, _ = plot_kernel_generic(as_noise_kernel(diagonal))
+    fig, _, _ = plot_kernel_2d(as_full_kernel_from_diagonal(diagonal))
     fig.show()
 
-    fig, _ = plot_kernel_truncation_error(kernel)
+    fig, _, _ = plot_diagonal_kernel_truncation_error(diagonal)
     fig.show()
 
     corrected_operators = get_temperature_corrected_noise_operators(system, config)
-    kernel_full = get_noise_kernel_generic(corrected_operators)
+    kernel_full = get_full_kernel_from_operators(corrected_operators)
 
-    fig, _, _ = plot_kernel_generic(kernel_full)
+    fig, _, _ = plot_kernel_2d(kernel_full)
     fig.show()
 
-    diagonal = as_diagonal_kernel(kernel_full)
-    fig, _, _ = plot_diagonal_kernel(diagonal)
+    diagonal = as_diagonal_kernel_from_full(kernel_full)
+    fig, _, _ = plot_diagonal_kernel_2d(diagonal)
     fig.show()
 
     input()
@@ -240,7 +238,7 @@ def plot_stochastic_occupation(
     )
     hamiltonian = get_hamiltonian(system, config)
 
-    fig2, ax2, line = plot_average_band_occupation(hamiltonian, states)
+    fig2, ax2, line = plot_average_eigenstate_occupation(hamiltonian, states)
 
     for ax in [ax2]:
         _, _, line = plot_eigenstate_occupations(hamiltonian, 150, ax=ax)
@@ -291,7 +289,7 @@ def plot_new_noise_operators(
     n: int = 1,
 ) -> None:
     """Plot the noise operators generated."""
-    operators = get_noise_operators_stacked_taylor_expansion(kernel, n=n)
+    operators = get_noise_operators_real_isotropic_stacked_taylor_expansion(kernel, n=n)
     op = select_operator_diagonal(operators, idx=1)
     fig1, ax1, _ = plot_operator_along_diagonal(as_operator(op), measure="real")
     ax1.set_title("fitted noise operator")
@@ -330,8 +328,10 @@ def plot_noise_kernel(
         fit_op_,
         TupleBasis(basis_x, basis_x),
     )
-    kernel_isotropic_ = as_isotropic_kernel(
-        get_diagonal_noise_kernel(as_diagonal_noise_operators(converted_)),
+    kernel_isotropic_ = as_isotropic_kernel_from_diagonal(
+        get_diagonal_kernel_from_operators(
+            as_diagonal_noise_operators_from_full(converted_),
+        ),
     )
     fig, _, line2 = plot_isotropic_noise_kernel_1d_x(kernel_isotropic_, ax=ax)
     line2.set_label("fitted noise, no temperature correction")
@@ -341,47 +341,16 @@ def plot_noise_kernel(
         fit_op,
         TupleBasis(basis_x, basis_x),
     )
-    kernel_isotropic = as_isotropic_kernel(
-        get_diagonal_noise_kernel(as_diagonal_noise_operators(converted)),
+    kernel_isotropic = as_isotropic_kernel_from_diagonal(
+        get_diagonal_kernel_from_operators(
+            as_diagonal_noise_operators_from_full(converted),
+        ),
     )
     fig, _, line3 = plot_isotropic_noise_kernel_1d_x(kernel_isotropic, ax=ax)
     line3.set_label("fitted noise, with temperature correction")
 
     ax.set_title(
         f"noise kernel, fit method = {config.FitMethod}, n = {config.n_polynomial}, temperature = {config.temperature}",
-    )
-    ax.legend()
-    fig.show()
-    input()
-
-
-def plot_isotropic_kernel_percentage_error(
-    system: PeriodicSystem,
-    config: SimulationConfig,
-    *,
-    to_compare: bool = False,
-    config1: SimulationConfig,
-) -> None:
-    true_kernel = get_noise_kernel(system, config)
-    operators = get_noise_operators(system, config)
-    fitted_kernel = get_diagonal_noise_kernel(operators)
-    fitted_kernel = as_isotropic_kernel(fitted_kernel)
-    fig, ax, line = plot_isotropic_kernel_error(true_kernel, fitted_kernel)
-
-    # to compare the errors between different methods directly
-    if to_compare:
-        operators1 = get_noise_operators(system, config1)
-        fitted_kernel1 = get_diagonal_noise_kernel(operators1)
-        fitted_kernel1 = as_isotropic_kernel(fitted_kernel1)
-        fig, _, line1 = plot_isotropic_kernel_error(true_kernel, fitted_kernel1, ax=ax)
-        line1.set_label(
-            f"fit method = {config1.FitMethod}, power of polynomial terms included = {config1.n_polynomial}",
-        )
-
-    ax.set_title("comparison of noise kernel percentage error")
-    ax.set_ylabel("Percentage Error, %")
-    line.set_label(
-        f"fit method = {config.FitMethod}, power of polynomial terms included = {config.n_polynomial}",
     )
     ax.legend()
     fig.show()

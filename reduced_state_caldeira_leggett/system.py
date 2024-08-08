@@ -25,20 +25,21 @@ from surface_potential_analysis.hamiltonian_builder.momentum_basis import (
 )
 from surface_potential_analysis.kernel.build import (
     get_temperature_corrected_diagonal_noise_operators,
+    truncate_diagonal_noise_operator_list,
 )
 from surface_potential_analysis.kernel.gaussian import (
     get_effective_gaussian_parameters,
     get_gaussian_isotropic_noise_kernel,
+    get_gaussian_operators_explicit_taylor,
 )
 from surface_potential_analysis.kernel.kernel import (
     IsotropicNoiseKernel,
     as_diagonal_kernel_from_isotropic,
-    truncate_diagonal_noise_operators,
 )
 from surface_potential_analysis.kernel.solve import (
     get_noise_operators_diagonal_eigenvalue,
     get_noise_operators_real_isotropic_stacked_fft,
-    get_noise_operators_stacked_taylor_expansion,
+    get_noise_operators_real_isotropic_stacked_taylor_expansion,
 )
 from surface_potential_analysis.operator.operator import as_operator
 from surface_potential_analysis.potential.conversion import convert_potential_to_basis
@@ -106,7 +107,7 @@ class SimulationConfig:
     n_bands: int
     type: Literal["bloch", "wannier"]
     temperature: float
-    FitMethod: Literal["poly fit", "eigenvalue", "fft"]
+    FitMethod: Literal["poly fit", "eigenvalue", "fft", "explicit polynomial"]
     n_polynomial: int
 
 
@@ -412,7 +413,7 @@ def get_noise_operators(
     kernel = get_gaussian_isotropic_noise_kernel(basis, a, lambda_)
     match config.FitMethod:
         case "poly fit":
-            operators = get_noise_operators_stacked_taylor_expansion(
+            operators = get_noise_operators_real_isotropic_stacked_taylor_expansion(
                 kernel,
                 n=config.n_polynomial,
             )
@@ -420,7 +421,7 @@ def get_noise_operators(
             operators = get_noise_operators_real_isotropic_stacked_fft(
                 kernel,
             )
-            operators = truncate_diagonal_noise_operators(
+            operators = truncate_diagonal_noise_operator_list(
                 operators,
                 range(config.n_polynomial),
             )
@@ -428,9 +429,16 @@ def get_noise_operators(
             operators = get_noise_operators_diagonal_eigenvalue(
                 as_diagonal_kernel_from_isotropic(kernel),
             )
-            operators = truncate_diagonal_noise_operators(
+            operators = truncate_diagonal_noise_operator_list(
                 operators,
                 range(config.n_polynomial),
+            )
+        case "explicit polynomial":
+            operators = get_gaussian_operators_explicit_taylor(
+                basis,
+                a,
+                lambda_,
+                n_terms=config.n_polynomial,
             )
     return operators
 

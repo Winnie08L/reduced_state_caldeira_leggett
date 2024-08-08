@@ -16,8 +16,8 @@ config = SimulationConfig(
     n_bands=3,
     type="bloch",
     temperature=150,
-    FitMethod="poly fit",
-    n_polynomial=0,
+    FitMethod="explicit polynomial",
+    n_polynomial=15,
 )
 
 plot_noise_kernel(system, config)
