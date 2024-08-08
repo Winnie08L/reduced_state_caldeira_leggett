@@ -344,11 +344,11 @@ def get_wavepacket(
 def get_localisation_operator(
     wavefunctions: BlochWavefunctionListWithEigenvaluesList[
         EvenlySpacedBasis[int, int, int],
-        TupleBasisLike[FundamentalBasis[int]],
-        TupleBasisWithLengthLike[FundamentalPositionBasis[int, Literal[1]]],
+        TupleBasisLike[*tuple[FundamentalBasis[int], ...]],
+        TupleBasisWithLengthLike[*tuple[FundamentalPositionBasis[int, int], ...]],
     ],
 ) -> LocalizationOperator[
-    TupleBasisLike[FundamentalBasis[int]],
+    TupleBasisLike[*tuple[FundamentalBasis[int], ...]],
     FundamentalBasis[int],
     EvenlySpacedBasis[int, int, int],
 ]:
