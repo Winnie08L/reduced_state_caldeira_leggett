@@ -8,11 +8,14 @@ from surface_potential_analysis.kernel.kernel import (
     as_diagonal_kernel_from_full,
     as_diagonal_kernel_from_isotropic,
     as_full_kernel_from_diagonal,
+    as_isotropic_kernel_from_diagonal,
+    get_diagonal_kernel_from_diagonal_operators,
     get_full_kernel_from_operators,
 )
 from surface_potential_analysis.kernel.plot import (
     plot_diagonal_kernel_2d,
     plot_diagonal_kernel_truncation_error,
+    plot_isotropic_kernel_error,
     plot_isotropic_noise_kernel_1d_x,
     plot_kernel_2d,
 )
@@ -315,4 +318,42 @@ def plot_kernel_fit_runtime(
     )
     plt.show()
 
+    input()
+
+
+def plot_isotropic_kernel_percentage_error(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    *,
+    to_compare: bool = False,
+    config1: SimulationConfig | None = None,
+) -> None:
+    true_kernel = get_true_noise_kernel(system, config)
+    operators = get_noise_operators(system, config)
+    fitted_kernel = get_diagonal_kernel_from_diagonal_operators(operators)
+    fitted_kernel = as_isotropic_kernel_from_diagonal(
+        fitted_kernel,
+        assert_isotropic=False,
+    )
+    fig, ax, line = plot_isotropic_kernel_error(true_kernel, fitted_kernel)
+
+    # to compare the errors between different methods directly
+    if to_compare:
+        operators1 = get_noise_operators(system, config1)
+        fitted_kernel1 = get_diagonal_kernel_from_diagonal_operators(operators1)
+        fitted_kernel1 = as_isotropic_kernel_from_diagonal(
+            fitted_kernel1,
+            assert_isotropic=False,
+        )
+        fig, _, line1 = plot_isotropic_kernel_error(true_kernel, fitted_kernel1, ax=ax)
+        line1.set_label(
+            f"fit method = {config1.fit_method}, power of polynomial terms included = {config1.n_polynomial}",
+        )
+    ax.set_title("comparison of noise kernel percentage error")
+    ax.set_ylabel("Percentage Error, %")
+    line.set_label(
+        f"fit method = {config.fit_method}, power of polynomial terms included = {config.n_polynomial}",
+    )
+    ax.legend()
+    fig.show()
     input()
