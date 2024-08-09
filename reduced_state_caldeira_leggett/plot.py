@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from matplotlib import pyplot as plt
 from surface_potential_analysis.kernel.kernel import (
@@ -51,6 +53,7 @@ from reduced_state_caldeira_leggett.system import (
     get_hamiltonian,
     get_noise_kernel,
     get_noise_operators,
+    get_operators_fit_time,
     get_potential_1d,
     get_potential_2d,
     get_temperature_corrected_noise_operators,
@@ -281,4 +284,35 @@ def plot_noise_kernel(
     )
     ax.legend()
     fig.show()
+    input()
+
+
+def plot_kernel_fit_runtime(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+    size: np.ndarray[tuple[int, int], np.dtype[Any]],
+    n_run: int,
+) -> None:
+    runtime = []
+    error = []
+    shape = []
+    for s in size:
+        config.shape = s
+        times = []
+        for _ in range(n_run):
+            times.append(get_operators_fit_time(system, config))
+        avg_time = np.mean(np.array(times)).item()
+        time_err = np.std(np.array(times)).item() / np.sqrt(n_run)
+        runtime.append(avg_time)
+        error.append(time_err)
+        shape.append(s[0])
+
+    plt.errorbar(x=np.array(shape), y=np.array(runtime), yerr=np.array(error))
+    plt.xlabel("number of unit cell")
+    plt.ylabel("runtime/seconds")
+    plt.title(
+        f"Runtime for fit method = {config.fit_method}, n = {config.n_polynomial}, temperature = {config.temperature}, number of run = {n_run}",
+    )
+    plt.show()
+
     input()

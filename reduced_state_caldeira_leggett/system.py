@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
 
@@ -42,7 +43,7 @@ from surface_potential_analysis.kernel.kernel import (
 )
 from surface_potential_analysis.kernel.solve import (
     get_noise_operators_diagonal_eigenvalue,
-    get_noise_operators_real_isotropic_stacked_fft,
+    get_noise_operators_real_isotropic_fft,
     get_noise_operators_real_isotropic_stacked_taylor_expansion,
 )
 from surface_potential_analysis.operator.operator import as_operator
@@ -409,7 +410,7 @@ def get_noise_kernel(
         operators,
         TupleBasis(basis, basis),
     )
-    return get_isotropic_kernel_from_operators(converted)
+    return get_isotropic_kernel_from_operators(converted, assert_isotropic=False)
 
 
 def get_true_noise_kernel(
@@ -425,7 +426,7 @@ def get_true_noise_kernel(
         config.temperature,
     )
     kernel = get_gaussian_isotropic_noise_kernel(basis, a, lambda_)
-    operators = get_noise_operators_real_isotropic_stacked_fft(
+    operators = get_noise_operators_real_isotropic_fft(
         kernel,
     )
     converted = convert_diagonal_noise_operator_list_to_basis(
@@ -456,7 +457,7 @@ def get_noise_operators(
                 n=config.n_polynomial,
             )
         case "fft":
-            operators = get_noise_operators_real_isotropic_stacked_fft(
+            operators = get_noise_operators_real_isotropic_fft(
                 kernel,
             )
             operators = truncate_diagonal_noise_operator_list(
@@ -495,6 +496,51 @@ def get_temperature_corrected_noise_operators(
         operators,
         config.temperature,
     )
+
+
+def get_operators_fit_time(
+    system: PeriodicSystem,
+    config: SimulationConfig,
+) -> float:
+    basis = convert_potential_to_position_basis(get_potential(system, config))["basis"]
+    a, lambda_ = get_effective_gaussian_parameters(
+        basis,
+        system.eta,
+        config.temperature,
+    )
+    kernel = get_gaussian_isotropic_noise_kernel(basis, a, lambda_)
+    ts = datetime.datetime.now(tz=datetime.UTC)
+    match config.fit_method:
+        case "poly fit":
+            operators = get_noise_operators_real_isotropic_stacked_taylor_expansion(
+                kernel,
+                n=config.n_polynomial,
+            )
+        case "fft":
+            operators = get_noise_operators_real_isotropic_fft(
+                kernel,
+            )
+            operators = truncate_diagonal_noise_operator_list(
+                operators,
+                range(config.n_polynomial),
+            )
+        case "eigenvalue":
+            operators = get_noise_operators_diagonal_eigenvalue(
+                as_diagonal_kernel_from_isotropic(kernel),
+            )
+            operators = truncate_diagonal_noise_operator_list(
+                operators,
+                range(config.n_polynomial),
+            )
+        case "explicit polynomial":
+            operators = get_gaussian_operators_explicit_taylor(
+                basis,
+                a,
+                lambda_,
+                n_terms=config.n_polynomial,
+            )
+    te = datetime.datetime.now(tz=datetime.UTC)
+    return (te - ts).total_seconds()
 
 
 def get_initial_state(
