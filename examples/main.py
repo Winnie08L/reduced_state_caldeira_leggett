@@ -9,21 +9,12 @@ from reduced_state_caldeira_leggett.system import (
 if __name__ == "__main__":
     system = HYDROGEN_NICKEL_SYSTEM
     config = SimulationConfig(
-        shape=(3,),
+        shape=(2,),
         resolution=(31,),
         n_bands=3,
         type="bloch",
         temperature=150,
-        FitMethod="poly fit",
-        n_polynomial=5,
-    )
-    config1 = SimulationConfig(
-        shape=(3,),
-        resolution=(31,),
-        n_bands=3,
-        type="bloch",
-        temperature=150,
-        FitMethod="fft",
+        fit_method="poly fit",
         n_polynomial=5,
     )
 
